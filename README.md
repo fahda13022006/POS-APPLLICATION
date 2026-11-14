@@ -17,9 +17,9 @@
 
 | No. | Nama Anggota | NIM |
 |:---:|---|:---:|
-| 01 | [Zakiyah Chizbu Aulia] | [2405107] |
-| 02 | [Nur Laeliyah] | [2405110] |
-| 03 | [Fahda Febriya] | [2405074] |
+| 01 | Zakiyah Chizbu Aulia | 2405107 |
+| 02 | Nur Laeliyah | 2405110 |
+| 03 | Fahda Febriya | 2405074 |
 
 <div align="center">
 
