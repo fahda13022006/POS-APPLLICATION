@@ -1,30 +1,39 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:pos_mobile/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('POS menampilkan layar login saat belum ada sesi', (tester) async {
+    const secureStorage = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureStorage, (call) async => null);
+    addTearDown(() => TestDefaultBinaryMessengerBinding.instance
+        .defaultBinaryMessenger
+        .setMockMethodCallHandler(secureStorage, null));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(const PosApp());
+    await tester.pumpAndSettle();
+    expect(find.text('PinkPoint POS'), findsOneWidget);
+    expect(find.text('Masuk sebagai Admin atau Kasir'), findsOneWidget);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  test('cart menambah item, menghitung total, dan mengubah kuantitas', () {
+    final cart = CartStore();
+    final product = Product(id: 1, name: 'Kopi', sku: 'K-01', price: 12000);
+    cart.add(product);
+    cart.add(product);
+    expect(cart.count, 2);
+    expect(cart.total, 24000);
+    cart.quantity(1, -1);
+    expect(cart.count, 1);
+    cart.remove(1);
+    expect(cart.lines, isEmpty);
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('role pengguna dikenali sebagai Admin atau Kasir', () {
+    expect(UserData(1, 'A', 'a@example.com', 'admin').admin, isTrue);
+    expect(UserData(2, 'K', 'k@example.com', 'cashier').admin, isFalse);
   });
 }
