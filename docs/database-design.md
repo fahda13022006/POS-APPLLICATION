@@ -1,259 +1,192 @@
 # Database Design – POS Application
 
-**Database:** PostgreSQL  
-**Schema:** `public`  
+**Database:** Cloud Firestore (Firebase)  
+**Autentikasi:** Firebase Authentication (email/password)  
 **Status:** Rancangan awal MVP
 
-> Nama tabel dan kolom di bawah adalah rancangan database internal aplikasi POS. Sesuaikan tipe data, constraint, dan migration dengan versi Laravel/PostgreSQL yang dipakai.
+> Firestore adalah database dokumen (koleksi → dokumen → field), bukan tabel relasional. Tidak ada foreign key, join, atau constraint di sisi database, sehingga validasi dilakukan di aplikasi dan sebagian di Security Rules. Jika tim memilih Realtime Database, struktur di bawah dapat dipetakan menjadi pohon JSON dengan jalur yang sama, tetapi aturan keamanannya memakai sintaks yang berbeda.
 
 ---
 
 ## 1. Prinsip Desain
 
-1. Gunakan primary key `BIGINT` identity atau strategi ID yang disepakati.
-2. Gunakan foreign key untuk menjaga integritas relasi.
-3. Gunakan `NUMERIC(14,2)` untuk nominal uang, bukan floating point.
-4. Gunakan timestamp untuk waktu pencatatan.
-5. Simpan snapshot nama produk, SKU, dan harga pada detail transaksi.
-6. Gunakan soft delete/nonaktif untuk produk dan kategori sesuai kebutuhan.
-7. Simpan event webhook dengan identitas unik untuk idempotensi.
-8. Semua waktu disimpan secara konsisten; tetapkan timezone aplikasi, misalnya `Asia/Jakarta`.
+1. Setiap koleksi menyimpan satu jenis data: `users`, `menus`, `orders`.
+2. Nominal uang disimpan sebagai bilangan bulat rupiah (`number` bertipe integer), bukan desimal. Format tampilan (`Rp 15.000`) dibuat di aplikasi dengan paket `intl`.
+3. Waktu disimpan sebagai `Timestamp` Firestore (diisi dengan `FieldValue.serverTimestamp()` agar tidak bergantung jam perangkat).
+4. Item pesanan disimpan sebagai snapshot (nama, harga, kuantitas) di dalam dokumen pesanan, sehingga perubahan atau penghapusan menu tidak mengubah riwayat.
+5. Role disimpan di dokumen `users/{uid}`, dengan `uid` sama dengan UID Firebase Authentication.
+6. Data yang selalu dibaca bersama disimpan dalam satu dokumen (denormalisasi) untuk mengurangi jumlah pembacaan.
 
 ---
 
-## 2. Daftar Tabel
+## 2. Daftar Koleksi
 
-| Tabel | Fungsi |
-|---|---|
-| `users` | Akun Admin dan Kasir |
-| `categories` | Kategori produk |
-| `products` | Data produk |
-| `orders` | Header transaksi |
-| `order_items` | Rincian item transaksi |
-| `payments` | Percobaan dan status pembayaran |
-| `payment_webhook_events` | Log notifikasi payment provider |
-| `personal_access_tokens` | Token Laravel Sanctum |
-| `audit_logs` | Catatan aktivitas penting (opsional tetapi direkomendasikan) |
+| Koleksi | Fungsi | Dokumen ID |
+|---|---|---|
+| `users` | Profil dan role akun Admin/Kasir | UID dari Firebase Authentication |
+| `menus` | Daftar menu/produk | ID otomatis Firestore |
+| `orders` | Pesanan, item, dan status pembayaran | ID otomatis Firestore |
+
+Tidak ada koleksi khusus untuk token atau webhook karena tidak ada backend sendiri.
 
 ---
 
-## 3. Definisi Tabel
+## 3. Definisi Koleksi
 
-### 3.1 `users`
+### 3.1 `users/{uid}`
 
-| Kolom | Tipe | Constraint/Keterangan |
+| Field | Tipe | Keterangan |
 |---|---|---|
-| `id` | BIGINT | PK |
-| `name` | VARCHAR(150) | NOT NULL |
-| `email` | VARCHAR(255) | NOT NULL, UNIQUE |
-| `password` | VARCHAR(255) | NOT NULL, password hash |
-| `role` | VARCHAR(20) | NOT NULL, `admin`/`cashier` |
-| `is_active` | BOOLEAN | NOT NULL, default true |
-| `email_verified_at` | TIMESTAMP NULL | Opsional |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
-
-Index:
-- Unique index pada `email`.
-- Index pada `role` jika sering dipakai untuk filter.
-
-### 3.2 `categories`
-
-| Kolom | Tipe | Constraint/Keterangan |
-|---|---|---|
-| `id` | BIGINT | PK |
-| `name` | VARCHAR(100) | NOT NULL |
-| `description` | TEXT NULL | Opsional |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
-| `deleted_at` | TIMESTAMP NULL | Jika soft delete dipakai |
-
-Nama kategori sebaiknya unik sesuai aturan bisnis.
-
-### 3.3 `products`
-
-| Kolom | Tipe | Constraint/Keterangan |
-|---|---|---|
-| `id` | BIGINT | PK |
-| `category_id` | BIGINT | FK ke categories |
-| `sku` | VARCHAR(60) | NOT NULL, UNIQUE |
-| `name` | VARCHAR(180) | NOT NULL |
-| `description` | TEXT NULL | |
-| `price` | NUMERIC(14,2) | NOT NULL, CHECK > 0 |
-| `image_path` | TEXT NULL | Path/URL gambar |
-| `is_active` | BOOLEAN | NOT NULL, default true |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
-| `deleted_at` | TIMESTAMP NULL | Soft delete |
-
-Relasi:
-- Satu kategori memiliki banyak produk.
-- Satu produk dimiliki satu kategori (untuk rancangan MVP).
-
-Index:
-- Unique `sku`.
-- Index `category_id`.
-- Index `is_active`.
-- Pertimbangkan pencarian nama/SKU sesuai kebutuhan.
-
-### 3.4 `orders`
-
-| Kolom | Tipe | Constraint/Keterangan |
-|---|---|---|
-| `id` | BIGINT | PK |
-| `invoice_number` | VARCHAR(60) | NOT NULL, UNIQUE |
-| `cashier_id` | BIGINT | FK ke users |
-| `subtotal` | NUMERIC(14,2) | NOT NULL |
-| `discount_amount` | NUMERIC(14,2) | NOT NULL, default 0 |
-| `tax_amount` | NUMERIC(14,2) | NOT NULL, default 0 |
-| `total_amount` | NUMERIC(14,2) | NOT NULL |
-| `status` | VARCHAR(30) | NOT NULL |
-| `notes` | TEXT NULL | Opsional |
-| `paid_at` | TIMESTAMP NULL | |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
-
-Relasi:
-- Satu Kasir memiliki banyak order.
-- Satu order memiliki banyak order items.
-- Satu order dapat memiliki beberapa payment attempts.
-
-Constraint:
-- `invoice_number` unik.
-- Nominal tidak boleh negatif.
-- `cashier_id` wajib merujuk user role Kasir (validasi role dilakukan aplikasi atau constraint tambahan jika dirancang).
-
-### 3.5 `order_items`
-
-| Kolom | Tipe | Constraint/Keterangan |
-|---|---|---|
-| `id` | BIGINT | PK |
-| `order_id` | BIGINT | FK ke orders |
-| `product_id` | BIGINT NULL | FK ke products; nullable untuk mempertahankan histori jika produk dihapus |
-| `product_name` | VARCHAR(180) | Snapshot nama |
-| `sku` | VARCHAR(60) NULL | Snapshot SKU |
-| `quantity` | INTEGER | NOT NULL, CHECK > 0 |
-| `unit_price` | NUMERIC(14,2) | NOT NULL |
-| `subtotal` | NUMERIC(14,2) | NOT NULL |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
-
-Snapshot memastikan transaksi lama tidak berubah ketika nama, SKU, atau harga produk diperbarui.
-
-### 3.6 `payments`
-
-| Kolom | Tipe | Constraint/Keterangan |
-|---|---|---|
-| `id` | BIGINT | PK |
-| `order_id` | BIGINT | FK ke orders |
-| `provider` | VARCHAR(40) | Misalnya `miomipay` |
-| `payment_reference` | VARCHAR(150) NULL | Referensi provider |
-| `payment_method` | VARCHAR(60) NULL | Metode provider |
-| `amount` | NUMERIC(14,2) | NOT NULL |
-| `currency` | CHAR(3) | Misalnya `IDR` |
-| `status` | VARCHAR(20) | NOT NULL |
-| `payment_url` | TEXT NULL | URL/instruksi dari provider |
-| `provider_payload` | JSONB NULL | Simpan hanya data yang diperlukan dan aman |
-| `expires_at` | TIMESTAMP NULL | |
-| `paid_at` | TIMESTAMP NULL | |
-| `created_at` | TIMESTAMP | |
-| `updated_at` | TIMESTAMP | |
+| `name` | string | Nama pengguna, wajib |
+| `email` | string | Email login |
+| `role` | string | `admin` atau `kasir`, wajib |
+| `isActive` | boolean | Akun nonaktif tidak boleh masuk, default `true` |
+| `createdAt` | timestamp | |
 
 Catatan:
-- Satu order dapat mempunyai lebih dari satu payment attempt jika percobaan sebelumnya gagal/kedaluwarsa.
-- `payment_reference` sebaiknya unik per provider jika provider menjaminnya.
-- Jangan menyimpan secret atau data autentikasi provider di tabel ini.
+- Akun dibuat di Firebase Console (Authentication → Add user), lalu dokumen `users/{uid}` dibuat manual dengan UID yang sama. Pembuatan akun dari dalam aplikasi tidak termasuk MVP.
+- Password tidak disimpan di Firestore; Firebase Authentication yang mengelolanya.
 
-### 3.7 `payment_webhook_events`
+Contoh:
 
-| Kolom | Tipe | Constraint/Keterangan |
+```json
+{
+  "name": "Admin Toko",
+  "email": "admin@contoh.com",
+  "role": "admin",
+  "isActive": true
+}
+```
+
+### 3.2 `menus/{menuId}`
+
+| Field | Tipe | Keterangan |
 |---|---|---|
-| `id` | BIGINT | PK |
-| `provider` | VARCHAR(40) | Nama provider |
-| `provider_event_id` | VARCHAR(180) | ID event provider |
-| `payment_id` | BIGINT NULL | FK ke payments |
-| `event_type` | VARCHAR(100) NULL | Jenis event |
-| `payload` | JSONB | Payload yang sudah disaring |
-| `signature_valid` | BOOLEAN | Hasil validasi |
-| `processed_at` | TIMESTAMP NULL | Waktu diproses |
-| `processing_status` | VARCHAR(30) | received/processed/failed |
-| `created_at` | TIMESTAMP | |
+| `name` | string | Nama menu, wajib |
+| `price` | number (integer) | Harga rupiah, wajib, > 0 |
+| `category` | string | Opsional, untuk filter |
+| `description` | string | Opsional |
+| `imageUrl` | string | Opsional (fitur tambahan) |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | Diperbarui setiap perubahan |
 
-Constraint:
-- Unique gabungan (`provider`, `provider_event_id`) jika provider menyediakan event ID stabil.
-- Jangan memproses event yang sama lebih dari satu kali.
+Catatan:
+- Penghapusan menu bersifat permanen. Histori transaksi tetap aman karena item pesanan menyimpan snapshot.
+- Kategori disimpan sebagai teks biasa pada MVP. Jika kelak dibutuhkan pengelolaan kategori, buat koleksi `categories`.
 
-### 3.8 `personal_access_tokens`
+Contoh:
 
-Tabel ini dibuat/dikelola oleh Laravel Sanctum melalui migration paket. Jangan membuat struktur sendiri tanpa memeriksa migration resmi versi yang digunakan.
+```json
+{
+  "name": "Es Teh Manis",
+  "price": 5000,
+  "category": "Minuman"
+}
+```
 
-### 3.9 `audit_logs` (Opsional)
+### 3.3 `orders/{orderId}`
 
-| Kolom | Tipe | Constraint/Keterangan |
+| Field | Tipe | Keterangan |
 |---|---|---|
-| `id` | BIGINT | PK |
-| `user_id` | BIGINT NULL | FK ke users |
-| `action` | VARCHAR(100) | Jenis aktivitas |
-| `entity_type` | VARCHAR(100) | Model/entitas |
-| `entity_id` | BIGINT NULL | ID entitas |
-| `metadata` | JSONB NULL | Perubahan yang aman dicatat |
-| `created_at` | TIMESTAMP | |
+| `invoiceNumber` | string | Unik, contoh `INV-20261120-A7K2` |
+| `cashierId` | string | UID Kasir pembuat pesanan |
+| `cashierName` | string | Snapshot nama Kasir |
+| `items` | array of map | Lihat tabel item di bawah |
+| `total` | number (integer) | Jumlah seluruh subtotal item |
+| `status` | string | `pending_payment`, `paid`, `cancelled`, `expired` |
+| `payment` | map | Lihat tabel pembayaran di bawah; `null` sebelum tagihan dibuat |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
+| `paidAt` | timestamp | Diisi saat status menjadi `paid` |
 
-Hindari mencatat password, token, secret, atau informasi sensitif ke audit log.
+Setiap elemen `items`:
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `menuId` | string | ID menu saat checkout (hanya rujukan, boleh sudah tidak ada) |
+| `name` | string | Snapshot nama |
+| `price` | number (integer) | Snapshot harga satuan |
+| `quantity` | number (integer) | Bilangan bulat > 0 |
+| `subtotal` | number (integer) | `price × quantity` |
+
+Isi `payment`:
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `provider` | string | `miomipay` atau `mock` |
+| `reference` | string | Referensi/ID transaksi dari MiomiPay |
+| `method` | string | Metode pembayaran, sesuai respons provider |
+| `amount` | number (integer) | Harus sama dengan `total` |
+| `status` | string | `pending`, `paid`, `failed`, `expired`, `cancelled` |
+| `paymentUrl` | string | URL atau instruksi pembayaran dari provider, jika ada |
+| `expiresAt` | timestamp | Jika disediakan provider |
+
+Catatan:
+- Pada MVP, satu pesanan memiliki satu tagihan aktif di dalam field `payment`. Jika perlu riwayat percobaan pembayaran, pindahkan ke subkoleksi `orders/{orderId}/payments`.
+- Jangan menyimpan kunci API atau data autentikasi provider di dokumen mana pun.
+- Nama dan format field `payment` yang berasal dari MiomiPay harus disesuaikan dengan dokumentasi resmi. Tabel di atas adalah rancangan internal.
+
+Contoh:
+
+```json
+{
+  "invoiceNumber": "INV-20261120-A7K2",
+  "cashierId": "uidKasir123",
+  "cashierName": "Kasir 1",
+  "items": [
+    { "menuId": "m1", "name": "Es Teh Manis", "price": 5000, "quantity": 2, "subtotal": 10000 }
+  ],
+  "total": 10000,
+  "status": "pending_payment",
+  "payment": { "provider": "mock", "reference": "TRX-001", "amount": 10000, "status": "pending" }
+}
+```
 
 ---
 
-## 4. Relasi Antar Tabel
+## 4. Relasi Antar Data
 
 ```mermaid
 erDiagram
-    USERS ||--o{ ORDERS : creates
-    CATEGORIES ||--o{ PRODUCTS : contains
-    ORDERS ||--|{ ORDER_ITEMS : contains
-    PRODUCTS ||--o{ ORDER_ITEMS : referenced_by
-    ORDERS ||--o{ PAYMENTS : has_attempts
-    PAYMENTS ||--o{ PAYMENT_WEBHOOK_EVENTS : receives
-    USERS ||--o{ AUDIT_LOGS : performs
+    USERS ||--o{ ORDERS : "dibuat oleh (cashierId)"
+    MENUS ||..o{ ORDERS : "disalin sebagai snapshot"
 ```
 
 Keterangan:
-- `users` ke `orders`: one-to-many.
-- `categories` ke `products`: one-to-many.
-- `orders` ke `order_items`: one-to-many.
-- `products` ke `order_items`: one-to-many.
-- `orders` ke `payments`: one-to-many.
-- `payments` ke `payment_webhook_events`: one-to-many.
+- `users` ke `orders`: satu Kasir dapat membuat banyak pesanan (rujukan lewat `cashierId`, tanpa foreign key).
+- `menus` ke `orders`: hanya disalin sebagai snapshot saat checkout; tidak ada ketergantungan yang harus dijaga.
 
 ---
 
 ## 5. Alur Penyimpanan Checkout
 
-1. Laravel menerima `product_id` dan `quantity` dari Flutter.
-2. Laravel memvalidasi role Kasir dan status produk.
-3. Laravel membaca harga aktual dari tabel `products`.
-4. Laravel menghitung subtotal setiap item dan total order.
-5. Laravel membuat `orders` dan `order_items` dalam satu database transaction.
-6. Laravel membuat payment attempt dan meminta tagihan ke provider.
-7. Jika provider gagal, order tetap tercatat dengan status yang sesuai dan dapat ditangani melalui retry/expiry.
-8. Setelah webhook/inquiry terverifikasi, backend memperbarui payment dan order.
+1. Kasir menekan Checkout; tombol dinonaktifkan agar tidak terkirim dua kali.
+2. Aplikasi membaca ulang dokumen menu untuk setiap item di keranjang.
+3. Jika ada menu yang sudah dihapus, checkout dibatalkan dan Kasir diberi tahu.
+4. Aplikasi menghitung subtotal tiap item dan total dari harga yang baru dibaca.
+5. Aplikasi membuat `invoiceNumber`.
+6. Aplikasi menyimpan dokumen `orders` dengan status `pending_payment` dalam satu operasi tulis.
+7. Aplikasi membuat tagihan ke MiomiPay lalu menyimpan hasilnya ke field `payment`.
+8. Jika pembuatan tagihan gagal, pesanan tetap tersimpan dan Kasir dapat mencoba lagi atau membatalkan.
+9. Setelah status pembayaran terverifikasi dari MiomiPay, aplikasi memperbarui `payment.status`, `status`, dan `paidAt`.
 
-Jangan menyimpan order hanya berdasarkan total yang dikirim Flutter.
+Catatan keterbatasan: `invoiceNumber` dibuat di sisi aplikasi dari tanggal dan kode acak, sehingga keunikan tidak dijamin oleh database seperti constraint UNIQUE. Untuk skala tugas ini kemungkinan bentrokan sangat kecil. Alternatif yang lebih kuat adalah memakai ID dokumen Firestore sebagai bagian dari nomor invoice.
 
 ---
 
 ## 6. Status Data
 
-### Payment
+### Payment (`payment.status`)
 
 | Status | Arti |
 |---|---|
 | `pending` | Menunggu pembayaran |
-| `paid` | Terverifikasi berhasil |
+| `paid` | Dinyatakan berhasil oleh MiomiPay |
 | `failed` | Gagal |
 | `expired` | Kedaluwarsa |
 | `cancelled` | Dibatalkan |
 
-### Order
+### Order (`status`)
 
 | Status | Arti |
 |---|---|
@@ -262,31 +195,102 @@ Jangan menyimpan order hanya berdasarkan total yang dikirim Flutter.
 | `cancelled` | Dibatalkan |
 | `expired` | Kedaluwarsa |
 
-Status final harus dipetakan dari respons resmi MiomiPay dan aturan bisnis yang disetujui tim.
+Status final dipetakan dari respons resmi MiomiPay dan aturan bisnis yang disetujui tim. Status `paid` tidak diubah kembali.
 
 ---
 
-## 7. Aturan Integritas dan Index
+## 7. Firestore Security Rules
 
-- Foreign key untuk semua relasi.
-- Unique constraint untuk `users.email`, `products.sku`, `orders.invoice_number`.
-- Unique constraint event webhook berdasarkan provider dan event ID.
-- Check constraint kuantitas > 0.
-- Check constraint harga dan nominal >= 0; harga produk wajib > 0.
-- Index `orders.cashier_id`, `orders.created_at`, `orders.status`.
-- Index `order_items.order_id`, `payments.order_id`, `payments.payment_reference`.
-- Gunakan transaksi database untuk operasi checkout dan pemrosesan webhook.
+Rules berikut adalah rancangan awal dan harus diuji (Rules Playground atau Emulator) sebelum dipakai. Jangan menggunakan mode test terbuka (`allow read, write: if true`) pada pengumpulan tugas.
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isAdmin() {
+      return signedIn() && me().role == 'admin' && me().isActive == true;
+    }
+    function isKasir() {
+      return signedIn() && me().role == 'kasir' && me().isActive == true;
+    }
+
+    // Pengguna hanya boleh membaca profilnya sendiri; Admin boleh membaca semua.
+    // Penulisan dilakukan lewat Firebase Console.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Admin dan Kasir boleh membaca menu; hanya Admin yang boleh mengubah.
+    match /menus/{menuId} {
+      allow read: if isAdmin() || isKasir();
+      allow create, update: if isAdmin()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.price is int
+        && request.resource.data.price > 0;
+      allow delete: if isAdmin();
+    }
+
+    // Kasir membuat dan membaca pesanannya sendiri; Admin membaca semua.
+    match /orders/{orderId} {
+      allow read: if isAdmin()
+        || (isKasir() && resource.data.cashierId == request.auth.uid);
+
+      allow create: if isKasir()
+        && request.resource.data.cashierId == request.auth.uid
+        && request.resource.data.status == 'pending_payment'
+        && request.resource.data.total is int
+        && request.resource.data.total > 0;
+
+      // Kasir hanya boleh memperbarui pesanannya sendiri dan tidak boleh
+      // mengubah isi pesanan (item, total, pemilik).
+      allow update: if isKasir()
+        && resource.data.cashierId == request.auth.uid
+        && request.resource.data.cashierId == resource.data.cashierId
+        && request.resource.data.items == resource.data.items
+        && request.resource.data.total == resource.data.total
+        && resource.data.status != 'paid';
+
+      allow delete: if false;
+    }
+  }
+}
+```
+
+Keterbatasan Rules ini (perlu dicatat dalam laporan):
+- Rules tidak dapat memverifikasi bahwa MiomiPay benar-benar menyatakan pembayaran berhasil. Kasir yang memodifikasi aplikasi masih dapat menulis `status: 'paid'` pada pesanannya sendiri.
+- Rules tidak menghitung ulang `total` dari harga menu.
+- Setiap evaluasi Rules yang memakai `get()` ke `users/{uid}` dihitung sebagai satu pembacaan dokumen.
+
+Penyelesaian yang lebih kuat adalah memindahkan pembuatan tagihan dan penetapan status `paid` ke Cloud Functions, di mana hanya server yang boleh menulis status pembayaran.
 
 ---
 
-## 8. Tanggung Jawab Implementasi
+## 8. Index dan Kueri
+
+- Daftar menu: `menus` diurutkan berdasarkan `name` (kueri satu field, tidak perlu index tambahan).
+- Riwayat Kasir (opsional): `orders` dengan `where cashierId == uid` dan `orderBy createdAt desc`. Kueri gabungan ini membutuhkan composite index; Firestore menampilkan tautan pembuatan index pada pesan error saat pertama kali dijalankan.
+- Riwayat Admin (opsional): `orders` diurutkan `createdAt desc` dengan `limit`.
+- Pencarian teks pada menu dilakukan di aplikasi atas data yang sudah dimuat, karena Firestore tidak mendukung pencarian teks parsial.
+
+---
+
+## 9. Tanggung Jawab Implementasi
 
 | Bagian | Penanggung jawab |
 |---|---|
-| `users`, Sanctum, role | Anggota 1 |
-| `categories`, `products` | Anggota 1 |
-| `orders`, `order_items` | Anggota 2 |
-| `payments`, webhook events | Anggota 2 |
+| Setup Firebase, `users`, Security Rules | Anggota 1 |
+| Koleksi `menus` dan service CRUD | Anggota 2 |
+| Koleksi `orders` dan service pesanan | Anggota 1 |
+| Field `payment` dan integrasi MiomiPay | Anggota 2 |
 | Konsumsi data dan state UI | Anggota 3 |
 
-Migration harus dikoordinasikan agar seluruh migration dapat dijalankan berurutan pada satu database.
+Perubahan struktur field harus diberitahukan ke seluruh anggota, karena model Dart (`fromMap`/`toMap`) harus mengikuti struktur ini.

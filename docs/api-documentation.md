@@ -1,472 +1,223 @@
-# API Documentation – POS Application
+# Dokumentasi Service & Integrasi API – POS Application
 
-**Versi:** 1.0 (rancangan kontrak internal)  
-**Prefix:** `/api/v1`  
-**Format:** JSON  
-**Authentication:** Bearer Token (Laravel Sanctum) untuk endpoint terlindungi
+**Versi:** 1.1 (rancangan kontrak internal)  
+**Arsitektur:** Flutter → Firebase (Authentication + Firestore) dan Flutter → MiomiPay  
+**Format:** Dart service class; tidak ada REST API milik tim
 
-> Endpoint dalam dokumen ini adalah endpoint yang dirancang untuk backend POS milik tim. Endpoint tersebut bukan endpoint resmi MiomiPay. Detail komunikasi ke MiomiPay harus mengikuti dokumentasi provider.
+> Aplikasi ini tidak memiliki backend sendiri, sehingga tidak ada endpoint `/api/v1`. "Kontrak" antaranggota tim berupa class service di Flutter (`AuthService`, `MenuService`, `OrderService`, `PaymentService`). Bagian MiomiPay di bawah hanya kerangka; endpoint, header, dan format data harus diisi dari dokumentasi resmi MiomiPay, bukan dikarang.
 
 ---
 
-## 1. Konvensi API
+## 1. Konvensi
 
-### 1.1 Base URL
-
-Development:
+### 1.1 Struktur Folder
 
 ```text
-http://127.0.0.1:8000/api/v1
+lib/
+├── main.dart
+├── models/        # AppUser, MenuItem, CartItem, OrderModel, PaymentInfo
+├── services/      # auth_service, menu_service, order_service, payment_service
+├── providers/     # state (Provider atau Riverpod)
+├── screens/
+│   ├── login/
+│   ├── admin/
+│   └── kasir/
+└── widgets/
 ```
 
-Production harus menggunakan HTTPS.
+### 1.2 Konfigurasi dan Rahasia
 
-### 1.2 Headers
+- `google-services.json` ditempatkan di `android/app/` setelah project Firebase dibuat.
+- Kunci API MiomiPay tidak ditulis di source code. Berikan melalui:
 
-Untuk request JSON:
-
-```http
-Accept: application/json
-Content-Type: application/json
-Authorization: Bearer <access_token>
+```bash
+flutter run --dart-define=MIOMIPAY_API_KEY=isi_kunci_sandbox
 ```
 
-Header `Authorization` tidak diperlukan untuk login dan webhook, tetapi webhook harus memakai verifikasi khusus provider.
+dan baca di kode dengan `String.fromEnvironment('MIOMIPAY_API_KEY')`.
+- Jangan commit file yang berisi kunci. Tambahkan ke `.gitignore` bila memakai file env.
+- Kunci yang dipakai dalam aplikasi mobile dapat diekstrak dari APK; gunakan hanya kunci sandbox.
 
-### 1.3 Format Response Sukses
+### 1.3 Penanganan Error Umum
 
-```json
-{
-  "success": true,
-  "message": "Request berhasil",
-  "data": {}
-}
-```
+| Sumber | Contoh error | Penanganan di UI |
+|---|---|---|
+| Firebase Auth | `invalid-credential` (pada versi terbaru menggantikan `user-not-found` dan `wrong-password`; periksa versi `firebase_auth` yang dipakai), `user-disabled`, `network-request-failed` | Pesan "Email atau password salah", "Akun dinonaktifkan", "Periksa koneksi" |
+| Firestore | `permission-denied`, `unavailable`, `not-found` | Pesan sesuai konteks dan tombol coba lagi |
+| MiomiPay | Timeout, HTTP error, respons tidak dikenal | Pesan error, pesanan tetap `pending_payment`, tombol coba lagi |
 
-### 1.4 Format Response Error
-
-```json
-{
-  "success": false,
-  "message": "Data tidak valid",
-  "errors": {
-    "email": ["Email wajib diisi."]
-  }
-}
-```
-
-Gunakan status HTTP secara konsisten:
-- `200`: request berhasil.
-- `201`: resource berhasil dibuat.
-- `204`: berhasil tanpa response body.
-- `400`: request tidak valid secara umum.
-- `401`: belum terautentikasi.
-- `403`: tidak memiliki izin.
-- `404`: resource tidak ditemukan.
-- `409`: konflik, misalnya invoice/event duplikat.
-- `422`: validasi gagal.
-- `429`: terlalu banyak request.
-- `500`: kesalahan server.
-- `502/503`: gangguan layanan eksternal.
-
-### 1.5 Pagination
-
-Contoh query:
-
-```text
-GET /products?page=1&per_page=20
-```
-
-Contoh response:
-
-```json
-{
-  "success": true,
-  "message": "Daftar produk",
-  "data": [],
-  "meta": {
-    "current_page": 1,
-    "per_page": 20,
-    "last_page": 4,
-    "total": 73
-  }
-}
-```
+Semua pemanggilan layanan eksternal dibungkus `try/catch` dan diberi timeout.
 
 ---
 
-## 2. Authentication API
+## 2. AuthService
 
-### 2.1 Login
-
-`POST /auth/login`
-
-Auth: tidak diperlukan.
-
-Request:
-
-```json
-{
-  "email": "kasir@example.com",
-  "password": "password"
-}
-```
-
-Response sukses:
-
-```json
-{
-  "success": true,
-  "message": "Login berhasil",
-  "data": {
-    "token": "<sanctum-token>",
-    "token_type": "Bearer",
-    "user": {
-      "id": 2,
-      "name": "Kasir Satu",
-      "email": "kasir@example.com",
-      "role": "cashier"
-    }
-  }
-}
-```
-
-Catatan:
-- Password tidak pernah dikembalikan.
-- Akun nonaktif harus ditolak.
-- Token disimpan di secure storage Flutter.
-
-### 2.2 Logout
-
-`POST /auth/logout`
-
-Auth: wajib.
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Logout berhasil",
-  "data": null
-}
-```
-
-Token aktif harus dicabut.
-
-### 2.3 Current User
-
-`GET /auth/me`
-
-Auth: wajib.
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Profil pengguna",
-  "data": {
-    "id": 2,
-    "name": "Kasir Satu",
-    "email": "kasir@example.com",
-    "role": "cashier",
-    "is_active": true
-  }
-}
-```
-
----
-
-## 3. Category API
-
-Akses:
-- `GET`: Admin dan Kasir.
-- `POST`, `PUT`, `DELETE`: Admin.
-
-### 3.1 List Categories
-
-`GET /categories`
-
-Query opsional: `page`, `per_page`, `search`.
-
-### 3.2 Create Category
-
-`POST /categories`
-
-```json
-{
-  "name": "Minuman",
-  "description": "Produk minuman"
-}
-```
-
-### 3.3 Detail Category
-
-`GET /categories/{id}`
-
-### 3.4 Update Category
-
-`PUT /categories/{id}`
-
-```json
-{
-  "name": "Minuman Dingin",
-  "description": "Kategori minuman dingin"
-}
-```
-
-### 3.5 Delete Category
-
-`DELETE /categories/{id}`
+| Method | Fungsi |
+|---|---|
+| `Future<AppUser> login(String email, String password)` | Login ke Firebase Auth, baca `users/{uid}`, kembalikan data pengguna dan role |
+| `Future<void> logout()` | Mengakhiri sesi |
+| `Stream<AppUser?> authStateChanges()` | Memantau status login untuk routing |
+| `Future<AppUser?> currentUser()` | Mengambil pengguna aktif beserta role |
 
 Aturan:
-- Kategori yang masih digunakan produk tidak boleh dihapus secara langsung.
-- Backend dapat mengembalikan `409 Conflict` atau meminta produk dipindahkan terlebih dahulu.
+- Setelah `signInWithEmailAndPassword` berhasil, baca `users/{uid}`.
+- Jika dokumen tidak ada atau `isActive == false`, lakukan logout dan tampilkan pesan.
+- Routing: `role == 'admin'` → halaman Admin; `role == 'kasir'` → halaman Kasir.
+
+Contoh alur:
+
+```dart
+final cred = await FirebaseAuth.instance
+    .signInWithEmailAndPassword(email: email, password: password);
+final doc = await FirebaseFirestore.instance
+    .collection('users').doc(cred.user!.uid).get();
+if (!doc.exists || doc.data()!['isActive'] != true) {
+  await FirebaseAuth.instance.signOut();
+  throw Exception('Akun tidak aktif atau belum terdaftar');
+}
+```
 
 ---
 
-## 4. Product API
+## 3. MenuService (Admin dan Kasir)
 
-Akses:
-- `GET`: Admin dan Kasir.
-- `POST`, `PUT`, `DELETE`: Admin.
+| Method | Pengguna | Fungsi |
+|---|---|---|
+| `Stream<List<MenuItem>> watchMenus()` | Admin, Kasir | Daftar menu real-time (`snapshots()`) |
+| `Future<void> addMenu(MenuItem m)` | Admin | Menambah menu |
+| `Future<void> updateMenu(String id, MenuItem m)` | Admin | Mengubah nama, harga, atau atribut lain |
+| `Future<void> deleteMenu(String id)` | Admin | Menghapus menu |
+| `Future<MenuItem?> getMenu(String id)` | Kasir | Membaca satu menu (dipakai saat checkout untuk harga terbaru) |
 
-### 4.1 List Products
+Validasi (di form dan didukung Rules):
+- Nama tidak boleh kosong.
+- Harga bilangan bulat > 0.
+- Admin diminta konfirmasi sebelum menghapus.
 
-`GET /products`
+Contoh stream:
 
-Query opsional:
-- `page`
-- `per_page`
-- `search` – nama atau SKU.
-- `category_id`
-- `is_active` – hanya untuk kebutuhan Admin.
-
-Kasir hanya menerima produk aktif, walaupun mencoba mengirim filter status lain.
-
-### 4.2 Detail Product
-
-`GET /products/{id}`
-
-### 4.3 Create Product
-
-`POST /products`
-
-Jika menggunakan multipart/form-data untuk gambar, field lain dikirim sebagai form fields.
-
-Contoh JSON tanpa gambar:
-
-```json
-{
-  "sku": "PRD-001",
-  "name": "Kopi Susu",
-  "category_id": 1,
-  "description": "Kopi susu ukuran reguler",
-  "price": 18000,
-  "is_active": true
-}
+```dart
+Stream<List<MenuItem>> watchMenus() => FirebaseFirestore.instance
+    .collection('menus')
+    .orderBy('name')
+    .snapshots()
+    .map((s) => s.docs.map((d) => MenuItem.fromMap(d.id, d.data())).toList());
 ```
 
-Validasi:
-- `sku`: wajib, unik.
-- `name`: wajib.
-- `category_id`: wajib dan harus ada.
-- `price`: numerik dan lebih besar dari nol.
-- `is_active`: boolean.
-
-### 4.4 Update Product
-
-`PUT /products/{id}`
-
-Contoh:
-
-```json
-{
-  "name": "Kopi Susu Large",
-  "price": 22000,
-  "is_active": true
-}
-```
-
-Harga lama pada transaksi yang sudah dibuat tidak berubah karena order item menyimpan snapshot harga.
-
-### 4.5 Delete/Deactivate Product
-
-`DELETE /products/{id}`
-
-Rekomendasi implementasi: soft delete atau ubah `is_active=false`, bukan menghapus permanen produk yang pernah direferensikan transaksi.
+Layar dibangun dengan `StreamBuilder` atau provider yang mendengarkan stream ini, sehingga perubahan Admin langsung tampil di layar Kasir.
 
 ---
 
-## 5. Order API
+## 4. Keranjang (State Lokal)
 
-Akses pembuatan order: Kasir.  
-Akses daftar/detail: Admin untuk semua transaksi; Kasir hanya transaksi miliknya.
+Keranjang disimpan di state aplikasi (provider), bukan di Firestore.
 
-### 5.1 Create Order / Checkout
+| Operasi | Aturan |
+|---|---|
+| Tambah item | Jika menu sudah ada di keranjang, kuantitas bertambah |
+| Ubah kuantitas | Bilangan bulat ≥ 1; kuantitas 0 dianggap hapus item |
+| Hapus item | Item dikeluarkan dan total dihitung ulang |
+| Total sementara | `sum(price × quantity)` dari data menu di memori; hanya estimasi tampilan |
 
-`POST /orders`
-
-Auth: wajib, role `cashier`.
-
-Request:
-
-```json
-{
-  "items": [
-    {
-      "product_id": 1,
-      "quantity": 2
-    },
-    {
-      "product_id": 3,
-      "quantity": 1
-    }
-  ],
-  "payment_method": "provider"
-}
-```
-
-Penting:
-- Client tidak mengirim harga yang dipercaya backend.
-- Backend mengambil harga terbaru dari database.
-- Backend menghitung ulang subtotal dan total.
-- Simpan order dan item dalam satu database transaction.
-- Gunakan idempotency key untuk mencegah order ganda akibat retry, jika diimplementasikan.
-
-Response rancangan:
-
-```json
-{
-  "success": true,
-  "message": "Order berhasil dibuat",
-  "data": {
-    "id": 1001,
-    "invoice_number": "INV-20261114-0001",
-    "subtotal": "54000.00",
-    "total_amount": "54000.00",
-    "status": "pending_payment",
-    "items": [
-      {
-        "product_id": 1,
-        "product_name": "Kopi Susu",
-        "quantity": 2,
-        "unit_price": "18000.00",
-        "subtotal": "36000.00"
-      },
-      {
-        "product_id": 3,
-        "product_name": "Roti Bakar",
-        "quantity": 1,
-        "unit_price": "18000.00",
-        "subtotal": "18000.00"
-      }
-    ]
-  }
-}
-```
-
-### 5.2 List Orders
-
-`GET /orders`
-
-Query opsional:
-- `page`
-- `per_page`
-- `status`
-- `date_from`
-- `date_to`
-- `search` – nomor invoice.
-
-### 5.3 Order Detail
-
-`GET /orders/{id}`
-
-Backend wajib memeriksa kepemilikan transaksi untuk Kasir.
-
-### 5.4 Receipt Detail
-
-`GET /orders/{id}/receipt`
-
-Response berisi data invoice, kasir, item, subtotal, total, dan status pembayaran. Endpoint dapat mengembalikan JSON untuk ditampilkan Flutter. Pembuatan PDF/cetak merupakan fitur tambahan jika disepakati.
+Total final dihitung ulang saat checkout (lihat bagian 5).
 
 ---
 
-## 6. Payment API
+## 5. OrderService (Kasir; Admin untuk riwayat)
 
-Akses: Kasir untuk transaksi miliknya; Admin dapat melihat sesuai kebijakan akses.
+| Method | Pengguna | Fungsi |
+|---|---|---|
+| `Future<OrderModel> createOrder(List<CartItem> cart, AppUser cashier)` | Kasir | Checkout: membaca ulang harga, menghitung total, menyimpan pesanan |
+| `Future<void> updatePaymentResult(String orderId, PaymentInfo p)` | Kasir | Menyimpan hasil tagihan/status pembayaran |
+| `Stream<List<OrderModel>> watchMyOrders(String uid)` | Kasir (opsional) | Riwayat milik sendiri |
+| `Stream<List<OrderModel>> watchAllOrders()` | Admin (opsional) | Seluruh riwayat dengan `limit` |
+| `Future<OrderModel?> getOrder(String id)` | Admin, Kasir | Detail/struk |
 
-### 6.1 Initiate Payment
+### 5.1 `createOrder` – Langkah
 
-`POST /orders/{id}/payments`
+1. Tolak jika keranjang kosong.
+2. Untuk setiap item, baca dokumen `menus/{menuId}` dari Firestore.
+3. Jika ada menu yang sudah tidak ada, batalkan dan beri tahu Kasir menu mana yang hilang.
+4. Hitung `subtotal = price × quantity` memakai harga yang baru dibaca, lalu `total = sum(subtotal)`.
+5. Buat `invoiceNumber` (contoh `INV-yyyyMMdd-XXXX`, XXXX kode acak).
+6. Simpan dokumen `orders` dengan `status: 'pending_payment'`, `cashierId`, `cashierName`, `items` (snapshot), `total`, `createdAt` (server timestamp).
+7. Kembalikan `OrderModel` untuk diteruskan ke `PaymentService`.
 
-Request internal POS dapat berupa:
+Pada UI, tombol Checkout dinonaktifkan selama langkah ini berjalan agar tidak terjadi pesanan ganda.
 
-```json
-{
-  "provider": "miomipay"
+---
+
+## 6. PaymentService (MiomiPay)
+
+`PaymentService` adalah interface. Layar UI hanya berbicara dengan interface ini.
+
+```dart
+abstract class PaymentService {
+  /// Membuat tagihan untuk pesanan. Mengembalikan instruksi pembayaran
+  /// (QR, nomor VA, atau URL) beserta referensi dari provider.
+  Future<PaymentInfo> createPayment(OrderModel order);
+
+  /// Memeriksa status terbaru pembayaran berdasarkan referensi provider.
+  Future<PaymentStatus> checkStatus(String paymentReference);
 }
+
+enum PaymentStatus { pending, paid, failed, expired, cancelled }
 ```
 
-Backend:
-1. Memastikan order milik Kasir dan masih dapat dibayar.
-2. Memastikan total order belum dibayar.
-3. Membuat payment attempt.
-4. Mengirim request ke provider sesuai dokumentasi resmi.
-5. Menyimpan provider reference, expiry, dan payment URL/instruksi yang diterima.
-6. Mengembalikan instruksi aman ke Flutter.
+Dua implementasi:
 
-Contoh response ilustratif:
+| Class | Fungsi |
+|---|---|
+| `MiomiPayService` | Memanggil API resmi MiomiPay. Diisi setelah dokumentasi tersedia |
+| `MockPaymentService` | Simulasi untuk pengembangan. Seluruh layar yang memakainya harus menampilkan label "MOCK – bukan transaksi sungguhan" |
 
-```json
-{
-  "success": true,
-  "message": "Instruksi pembayaran berhasil dibuat",
-  "data": {
-    "payment_id": 501,
-    "order_id": 1001,
-    "status": "pending",
-    "amount": "54000.00",
-    "payment_url": "<url-dari-provider>",
-    "expires_at": "2026-11-14T15:00:00+07:00"
-  }
-}
-```
+Implementasi dipilih melalui konfigurasi, misalnya `--dart-define=PAYMENT_MODE=mock|miomipay`.
 
-Nama field dan metode pembayaran final harus disesuaikan dengan respons asli MiomiPay.
+### 6.1 Yang Harus Diisi dari Dokumentasi Resmi MiomiPay
 
-### 6.2 Payment Status
+Dokumentasi tidak tersedia di halaman publik `https://pg.miomidev.com/` (halaman tersebut adalah login dashboard). Ambil dari dashboard setelah mendaftar. Isi tabel ini sebelum mengimplementasikan `MiomiPayService`:
 
-`GET /payments/{id}`
+| Item | Nilai (isi dari dokumentasi) |
+|---|---|
+| Base URL sandbox | _belum diisi_ |
+| Cara autentikasi (header/kunci) | _belum diisi_ |
+| Endpoint membuat tagihan | _belum diisi_ |
+| Field request wajib (nominal, referensi, dll.) | _belum diisi_ |
+| Format respons (ID transaksi, instruksi pembayaran) | _belum diisi_ |
+| Metode pembayaran yang didukung | _belum diisi_ |
+| Endpoint cek status | _belum diisi_ (jika tidak ada, lihat catatan di bawah) |
+| Daftar status provider dan pemetaannya | _belum diisi_ |
+| Masa berlaku tagihan | _belum diisi_ |
+| Cara mensimulasikan pembayaran sukses/gagal di sandbox | _belum diisi_ |
 
-Backend mengembalikan status internal yang telah diverifikasi. Jika perlu, backend dapat melakukan inquiry ke provider.
+Jika MiomiPay tidak menyediakan endpoint cek status, alur verifikasi pada aplikasi tanpa server tidak dapat dibuat andal. Dalam kasus itu catat keterbatasannya dan diskusikan dengan pelatih apakah Cloud Functions diperbolehkan untuk menerima callback.
 
-### 6.3 MiomiPay Webhook
+### 6.2 Pemetaan Status
 
-`POST /webhooks/miomipay`
+Isi setelah daftar status MiomiPay diketahui.
 
-Auth pengguna biasa: tidak digunakan. Verifikasi harus mengikuti mekanisme provider.
+| Status MiomiPay | Status internal |
+|---|---|
+| _isi_ | `paid` |
+| _isi_ | `pending` |
+| _isi_ | `failed` |
+| _isi_ | `expired` |
+| _isi_ | `cancelled` |
 
-Persyaratan:
-- Validasi signature/token dan timestamp jika diwajibkan provider.
-- Cocokkan provider reference.
-- Cocokkan nominal dan mata uang.
-- Simpan event ID unik.
-- Proses event secara idempotent.
-- Catat payload yang diperlukan dengan memperhatikan data sensitif.
-- Jangan mengubah status menjadi paid jika verifikasi gagal.
+### 6.3 Alur Pembayaran
 
-Contoh payload di bawah hanya ilustrasi konseptual, bukan format resmi MiomiPay:
+1. `OrderService.createOrder` menyimpan pesanan `pending_payment`.
+2. `PaymentService.createPayment(order)` membuat tagihan; nominal harus sama dengan `order.total`.
+3. Hasilnya disimpan ke field `payment` pada dokumen pesanan.
+4. UI menampilkan instruksi pembayaran.
+5. Aplikasi memanggil `checkStatus(reference)` secara berkala (misalnya setiap beberapa detik selama halaman pembayaran terbuka) dan lewat tombol "Periksa status".
+6. Jika status `paid`, perbarui `payment.status`, `status`, dan `paidAt` pada pesanan.
+7. Jika `failed` atau `expired`, tampilkan hasil dan beri opsi membuat tagihan ulang atau membatalkan.
 
-```json
-{
-  "event_id": "evt_example_001",
-  "reference": "provider_reference_example",
-  "status": "SUCCESS",
-  "amount": "54000.00"
-}
-```
+Aturan:
+- Jangan menandai `paid` berdasarkan tombol atau redirect di aplikasi saja.
+- Jika permintaan ke MiomiPay gagal karena jaringan, pesanan tetap `pending_payment`; jangan menampilkan pesan berhasil.
+- Jangan mencetak kunci API atau respons lengkap yang sensitif ke log.
 
 ---
 
@@ -477,56 +228,39 @@ Contoh payload di bawah hanya ilustrasi konseptual, bukan format resmi MiomiPay:
 | Status internal | Makna |
 |---|---|
 | `pending` | Menunggu pembayaran |
-| `paid` | Pembayaran terverifikasi berhasil |
+| `paid` | Dinyatakan berhasil oleh MiomiPay |
 | `failed` | Pembayaran gagal |
 | `expired` | Tagihan kedaluwarsa |
 | `cancelled` | Pembayaran dibatalkan |
 
 ### 7.2 Order Status
 
-Status order yang disarankan:
-- `pending_payment`
-- `paid`
-- `cancelled`
-- `expired`
+| Status | Makna |
+|---|---|
+| `pending_payment` | Menunggu pembayaran |
+| `paid` | Pembayaran terverifikasi |
+| `cancelled` | Dibatalkan |
+| `expired` | Kedaluwarsa |
 
-Transisi status harus dilakukan backend berdasarkan hasil pembayaran terverifikasi dan aturan bisnis.
+Transisi yang diizinkan:
 
----
-
-## 8. Error Handling
-
-Contoh validasi gagal:
-
-```json
-{
-  "success": false,
-  "message": "The given data was invalid.",
-  "errors": {
-    "items.0.quantity": [
-      "Quantity minimal 1."
-    ]
-  }
-}
+```text
+pending_payment → paid
+pending_payment → expired
+pending_payment → cancelled
 ```
 
-Flutter harus menangani:
-- Koneksi terputus.
-- Timeout.
-- Token kedaluwarsa.
-- Akses ditolak.
-- Produk tidak aktif.
-- Stok tidak tersedia (jika modul stok ditambahkan).
-- Payment provider tidak tersedia.
-- Pembayaran masih pending.
+Status `paid` tidak dapat berubah kembali.
 
 ---
 
-## 9. Catatan Implementasi untuk Tim
+## 8. Catatan Implementasi untuk Tim
 
-1. Anggota 1 bertanggung jawab pada auth, role, kategori, dan produk.
-2. Anggota 2 bertanggung jawab pada order, payment, webhook, dan transaksi.
-3. Anggota 3 mengonsumsi endpoint tersebut dari Flutter.
-4. Perubahan kontrak API wajib dikomunikasikan dan dokumen ini diperbarui.
-5. Gunakan Postman Collection untuk pengujian bersama.
-6. Endpoint MiomiPay yang sebenarnya hanya boleh ditentukan dari dokumentasi provider.
+1. Aplikasi tidak punya server yang menerima webhook. Verifikasi pembayaran dilakukan lewat `checkStatus` dari aplikasi.
+2. Hak akses dijaga oleh Firestore Security Rules (lihat `docs/database-design.md` bagian 7) dan navigasi aplikasi. Keduanya harus ada.
+3. Model Dart (`fromMap`/`toMap`) harus mengikuti struktur di `database-design.md`.
+4. Uang selalu bilangan bulat rupiah; jangan memakai `double`.
+5. Gunakan `FieldValue.serverTimestamp()` untuk `createdAt`, `updatedAt`, dan `paidAt`.
+6. Selalu tangani state loading, kosong, dan error pada setiap layar yang membaca stream atau memanggil service.
+7. Gunakan `MockPaymentService` agar pengembangan UI tidak menunggu akses MiomiPay, tetapi label mock harus selalu terlihat di layar dan disebut di laporan.
+8. Keterbatasan arsitektur tanpa backend (kunci API di aplikasi, status `paid` ditulis dari client) dijelaskan di `prd.md` bagian 6.4 dan harus disebut di laporan.

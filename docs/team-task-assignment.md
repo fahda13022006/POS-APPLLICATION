@@ -1,200 +1,122 @@
 # Pembagian Tugas Kelompok – POS Application
 
 **Jumlah anggota:** 3 orang  
-**Model pembagian:** 2 Backend Developer + 1 Frontend Developer  
-**Teknologi:** Laravel, PostgreSQL, Flutter, MiomiPay API
+**Model pembagian:** per fitur (tiap anggota memegang satu bagian dari awal sampai akhir)  
+**Teknologi:** Flutter, Firebase (Authentication + Cloud Firestore), MiomiPay API
 
-> Ganti label Anggota 1, Anggota 2, dan Anggota 3 dengan nama anggota kelompok.
+> Ganti label Anggota 1, Anggota 2, dan Anggota 3 dengan nama anggota kelompok. Karena tidak ada backend sendiri, pembagian "backend/frontend" pada versi sebelumnya dihapus. Semua anggota bekerja di project Flutter yang sama, sehingga pembagian dibuat per fitur agar tiap orang menyentuh data dan UI sekaligus.
 
 ---
 
 ## 1. Struktur Tim
 
-| Anggota | Peran | Fokus |
+| Anggota | Fokus | Cakupan |
 |---|---|---|
-| Anggota 1 | Backend Developer | Core system, authentication, role, product, category |
-| Anggota 2 | Backend Developer | Order, checkout, invoice, payment, webhook |
-| Anggota 3 | Frontend Developer | Seluruh UI Flutter dan integrasi REST API |
-
-Pembagian ini memisahkan pekerjaan berdasarkan spesialisasi. Backend dibagi menjadi dua domain agar beban backend tidak menumpuk pada satu orang.
+| Anggota 1 | Fondasi, autentikasi, dan pesanan | Setup Firebase, login/role, Security Rules, penyimpanan pesanan, riwayat |
+| Anggota 2 | Menu dan pembayaran | CRUD menu real-time (Admin), integrasi MiomiPay |
+| Anggota 3 | Halaman Kasir | Daftar menu Kasir, keranjang, checkout, tampilan pembayaran, APK |
 
 ---
 
-## 2. Anggota 1 – Backend Developer (Core System & Product)
+## 2. Anggota 1 – Fondasi, Autentikasi, dan Pesanan
 
 ### Tanggung Jawab
 
-**Setup backend**
-- Membuat project Laravel.
-- Mengatur koneksi PostgreSQL.
-- Menyiapkan konfigurasi environment.
-- Menyiapkan struktur dasar aplikasi.
-- Menyiapkan migration dan seeder untuk domain core.
+**Setup**
+- Membuat project Firebase dan mengaktifkan Authentication (Email/Password) serta Cloud Firestore.
+- Mendaftarkan aplikasi Android dan memasang `google-services.json`.
+- Menambahkan dependency Firebase ke `pubspec.yaml` dan inisialisasi di `main.dart`.
+- Menyiapkan struktur folder `lib/` dan routing dasar.
+- Membuat akun Admin dan Kasir awal serta dokumen `users/{uid}`.
 
-**Authentication & authorization**
-- Membuat migration/model user.
-- Mengimplementasikan Laravel Sanctum.
-- Membuat API login, logout, dan profile.
-- Membuat role Admin dan Kasir.
-- Membuat middleware dan policy/authorization.
-- Menguji pembatasan akses.
+**Autentikasi dan role**
+- `AuthService` (login, logout, status login, pembacaan role).
+- Layar Login dan validasi form.
+- Routing berdasarkan role; penolakan akun nonaktif.
+- Menulis dan menguji Firestore Security Rules.
 
-**Product & category**
-- Membuat tabel, model, dan relasi kategori.
-- Membuat tabel, model, dan relasi produk.
-- Membuat CRUD kategori.
-- Membuat CRUD produk.
-- Membuat validasi SKU, nama, harga, dan kategori.
-- Membuat upload foto produk jika digunakan.
-- Membuat pencarian dan filter.
-- Menerapkan soft delete/nonaktif sesuai aturan.
+**Pesanan**
+- Model `OrderModel` dan `OrderService`.
+- Pembuatan invoice dan penyimpanan pesanan (`createOrder`).
+- Penyimpanan hasil pembayaran ke pesanan.
+- (Opsional) Riwayat transaksi dan struk.
 
-**Dokumentasi dan testing**
-- Menyediakan Postman Collection untuk endpoint yang dibuat.
-- Memperbarui API documentation.
-- Membuat test auth, role, produk, dan kategori.
-- Membantu integrasi backend bersama.
+**Dokumentasi**
+- `database-design.md` dan bagian Firebase di README (cara setup, cara membuat akun awal).
 
 ### Deliverables Anggota 1
 
-1. Laravel core setup.
-2. Konfigurasi PostgreSQL.
-3. Authentication API.
-4. Role-based access control.
-5. Product CRUD API.
-6. Category CRUD API.
-7. Search dan filter API.
-8. Migration, seeder, dan test terkait.
-9. Dokumentasi endpoint.
+1. Project Firebase terkonfigurasi.
+2. Login/logout dan routing role.
+3. Security Rules teruji.
+4. `OrderService` dan penyimpanan pesanan.
+5. (Opsional) Riwayat dan struk.
+6. Dokumentasi setup.
 
 ---
 
-## 3. Anggota 2 – Backend Developer (Transaction & Payment)
+## 3. Anggota 2 – Menu dan Pembayaran
 
 ### Tanggung Jawab
 
-**Database transaksi**
-- Membuat migration/model orders.
-- Membuat migration/model order_items.
-- Membuat migration/model payments.
-- Membuat migration/model payment_webhook_events.
-- Menyiapkan relasi dan constraint.
-- Berkoordinasi dengan Anggota 1 untuk urutan migration dan model User/Product.
+**CRUD menu (Admin)**
+- Model `MenuItem` dan `MenuService`.
+- Halaman daftar menu Admin dengan stream real-time.
+- Form tambah dan ubah menu beserta validasi.
+- Hapus menu dengan konfirmasi.
+- (Opsional) foto menu dan kategori.
 
-**Order & checkout**
-- Membuat API pembuatan order.
-- Memvalidasi produk dan kuantitas.
-- Mengambil harga dari database.
-- Menghitung subtotal dan total di backend.
-- Membuat invoice unik.
-- Menyimpan order dan order items secara atomik.
-- Menyimpan snapshot nama, SKU, dan harga.
+**Pembayaran MiomiPay**
+- Mendaftar akun MiomiPay dan mengambil dokumentasi serta kunci sandbox.
+- Mengisi tabel di `api-documentation.md` bagian 6.1 dari dokumentasi resmi.
+- Interface `PaymentService`, `MockPaymentService`, dan `MiomiPayService`.
+- Pemetaan status provider ke status internal.
+- Pengecekan status pembayaran (polling/tombol periksa status).
+- Penanganan timeout dan error.
 
-**Payment**
-- Mempelajari dokumentasi resmi MiomiPay.
-- Meminta/menyiapkan akses sandbox.
-- Membuat Payment Service.
-- Menghubungkan Laravel dengan MiomiPay.
-- Membuat API inisiasi pembayaran.
-- Membuat endpoint webhook.
-- Memverifikasi notifikasi.
-- Menangani status pending, paid, failed, expired, dan cancelled.
-- Menerapkan idempotensi webhook.
-- Menyediakan inquiry status jika didukung provider.
-
-**Transaction history**
-- Membuat API daftar transaksi.
-- Membuat API detail transaksi.
-- Membuat API receipt.
-- Memastikan Admin dapat melihat semua transaksi dan Kasir hanya miliknya.
-
-**Dokumentasi dan testing**
-- Menyediakan Postman Collection.
-- Menguji checkout, kalkulasi, payment, webhook, dan riwayat.
-- Memperbarui dokumentasi API/database.
+**Dokumentasi**
+- `api-documentation.md` (bagian MenuService dan PaymentService).
 
 ### Deliverables Anggota 2
 
-1. Order dan order item schema.
-2. Checkout API.
-3. Invoice generator.
-4. Payment API/service.
-5. Integrasi MiomiPay atau mock payment berlabel jelas.
-6. Webhook handler.
-7. Payment verification dan idempotensi.
-8. Transaction history/detail/receipt API.
-9. Test dan dokumentasi terkait.
+1. CRUD menu Admin dengan data real-time.
+2. `PaymentService` dengan implementasi mock dan MiomiPay.
+3. Pemetaan status pembayaran.
+4. Dokumentasi MiomiPay yang sudah terisi.
 
 ---
 
-## 4. Anggota 3 – Frontend Developer (Flutter Mobile)
+## 4. Anggota 3 – Halaman Kasir
 
 ### Tanggung Jawab
 
-**Setup Flutter**
-- Membuat project Flutter.
-- Mengatur struktur folder dan dependencies.
-- Menyiapkan Dio/API client.
-- Menyiapkan state management (Provider atau Riverpod).
-- Menyiapkan routing.
-- Menyiapkan secure storage untuk token.
-- Mengatur base URL per environment.
+**Katalog Kasir**
+- Halaman daftar menu Kasir dari stream Firestore.
+- (Opsional) pencarian dan filter kategori.
 
-**Authentication UI**
-- Membuat Splash Screen.
-- Membuat Login Screen.
-- Validasi form login.
-- Menghubungkan login/logout dengan API.
-- Menyimpan dan menghapus token.
-- Navigasi berdasarkan role.
+**Keranjang dan checkout**
+- State keranjang (Provider atau Riverpod): tambah, ubah kuantitas, hapus, total.
+- Ringkasan keranjang dan tombol Checkout (dinonaktifkan saat proses berjalan).
+- Memanggil `OrderService.createOrder` lalu `PaymentService.createPayment`.
 
-**Admin UI**
-- Dashboard Admin.
-- Daftar produk.
-- Tambah produk.
-- Edit produk.
-- Detail produk.
-- Kelola kategori.
-- Riwayat transaksi.
-- Detail transaksi/struk.
+**Tampilan pembayaran**
+- Halaman instruksi pembayaran (QR/VA/tautan sesuai respons).
+- Menampilkan status pembayaran dan tombol periksa status.
+- Label jelas bila memakai mode mock.
 
-**Cashier UI**
-- Dashboard Kasir.
-- Katalog produk.
-- Pencarian dan filter.
-- Keranjang belanja.
-- Ubah kuantitas dan hapus item.
-- Ringkasan subtotal dan total.
-- Checkout.
-- Instruksi pembayaran.
-- Status pembayaran.
-- Riwayat dan detail transaksi.
-
-**API integration**
-- Menghubungkan semua halaman ke REST API.
-- Menangani loading, empty, success, dan error state.
-- Mengelola token kedaluwarsa.
-- Memastikan data UI mengikuti response backend.
-- Tidak mempercayai total harga dari client sebagai nilai final.
-
-**Testing dan build**
-- Menguji UI pada emulator/perangkat.
-- Menguji alur Admin dan Kasir.
-- Membuat APK debug/release sesuai instruksi.
-- Memperbaiki bug tampilan dan integrasi.
+**UI umum dan build**
+- Tema dan komponen bersama.
+- State loading, kosong, dan error.
+- Membuat APK Android.
+- Dokumentasi penggunaan singkat.
 
 ### Deliverables Anggota 3
 
-1. Flutter project.
-2. Login dan navigasi role.
-3. Admin UI.
-4. Cashier UI.
-5. Cart dan checkout UI.
-6. Payment UI.
-7. Riwayat dan struk UI.
-8. Integrasi REST API.
-9. APK Android.
-10. Dokumentasi penggunaan singkat.
+1. Halaman daftar menu Kasir.
+2. Keranjang dan checkout.
+3. Halaman pembayaran dan status.
+4. APK Android.
+5. Dokumentasi penggunaan singkat.
 
 ---
 
@@ -202,37 +124,33 @@ Pembagian ini memisahkan pekerjaan berdasarkan spesialisasi. Backend dibagi menj
 
 | Modul | Anggota 1 | Anggota 2 | Anggota 3 |
 |---|:---:|:---:|:---:|
-| Laravel setup | Utama | Konsultasi | - |
-| PostgreSQL setup | Utama | Konsultasi | - |
-| Users & Sanctum | Utama | - | Konsumsi API |
-| Role & authorization | Utama | Integrasi policy | Navigasi UI |
-| Categories | Utama | - | UI |
-| Products | Utama | - | UI |
-| Orders | Integrasi User/Product | Utama | UI |
-| Order items | Integrasi Product | Utama | UI |
-| Checkout | - | Utama | Integrasi UI |
-| Invoice | - | Utama | Tampilan |
-| Payment service | - | Utama | Konsumsi API |
-| Webhook | - | Utama | Status UI |
-| Transaction history API | Integrasi role | Utama | Tampilan |
-| Flutter project | - | - | Utama |
-| Admin & cashier screens | - | - | Utama |
-| API integration | Dukungan kontrak | Dukungan kontrak | Utama |
-| UAT dan finalisasi | Bersama | Bersama | Bersama |
+| Setup Firebase | Utama | Konsultasi | Konsultasi |
+| Login dan role | Utama | - | Navigasi UI |
+| Security Rules | Utama | Review | Review |
+| CRUD menu (Admin) | Rules | Utama | - |
+| Daftar menu Kasir | - | Service | Utama |
+| Keranjang | - | - | Utama |
+| Pesanan (`OrderService`) | Utama | - | Pemanggil UI |
+| Checkout (UI) | Service | - | Utama |
+| MiomiPay service | - | Utama | Pemanggil UI |
+| Halaman pembayaran | - | Service | Utama |
+| Riwayat dan struk (opsional) | Utama | - | UI |
+| Pengujian dan finalisasi | Bersama | Bersama | Bersama |
 
 ---
 
 ## 6. Timeline Kerja
 
+Contoh 4 minggu. Sesuaikan dengan tenggat dari pelatih.
+
 | Minggu | Anggota 1 | Anggota 2 | Anggota 3 |
 |---|---|---|---|
-| 1 | Laravel, PostgreSQL, auth skeleton | Desain tabel order/payment, pelajari MiomiPay | Setup Flutter, wireframe, API client |
-| 2 | Auth, role, CRUD kategori/produk | Order schema dan checkout API | Login, navigasi role, Admin UI awal |
-| 3 | Product API testing dan dokumentasi | Checkout, invoice, payment service | Product UI, katalog, pencarian |
-| 4 | Perbaikan API dan integrasi | Webhook, payment testing, history API | Cart, checkout, payment UI |
-| 5 | Regression test dan finalisasi | Regression test dan finalisasi | Integrasi penuh, UAT, APK |
+| 1 | Setup Firebase, struktur project, akun awal | Daftar MiomiPay, pelajari dokumentasi, desain `MenuService` | Wireframe, tema, kerangka halaman Kasir |
+| 2 | Login, role, Security Rules | CRUD menu Admin real-time | Daftar menu Kasir dan keranjang |
+| 3 | `OrderService`, penyimpanan pesanan | `PaymentService` (mock dan MiomiPay) | Checkout dan halaman pembayaran |
+| 4 | Uji Rules, riwayat (opsional) | Uji pembayaran sandbox | Integrasi penuh, UAT, APK |
 
-Timeline dapat berubah jika dokumentasi atau akses sandbox MiomiPay belum tersedia.
+Timeline dapat berubah jika dokumentasi atau kunci sandbox MiomiPay belum tersedia.
 
 ---
 
@@ -240,22 +158,21 @@ Timeline dapat berubah jika dokumentasi atau akses sandbox MiomiPay belum tersed
 
 1. Gunakan satu repository GitHub.
 2. Setiap anggota bekerja di branch masing-masing.
-3. Jangan commit file `.env`, API secret, token, atau kredensial.
-4. Setiap endpoint harus didokumentasikan sebelum dipakai frontend.
-5. Perubahan response API harus diberitahukan kepada Anggota 3.
-6. Gunakan mock response/data untuk pekerjaan paralel saat API belum selesai.
-7. Semua perubahan masuk ke `main` melalui Pull Request.
-8. Jalankan test sebelum merge.
-9. Lakukan review silang minimal satu anggota.
-10. Catat pekerjaan dan kendala pada issue/board kelompok.
+3. Jangan commit kunci API, token, atau kredensial. File `google-services.json` ditangani sesuai kesepakatan tim (jika repository publik, jangan di-commit; bagikan lewat cara lain).
+4. Perubahan struktur Firestore atau signature service harus diberitahukan ke seluruh anggota sebelum di-merge.
+5. Gunakan `MockPaymentService` dan data contoh agar pekerjaan paralel tidak saling menunggu.
+6. Semua perubahan masuk ke `main` melalui Pull Request.
+7. Jalankan `flutter analyze` sebelum merge.
+8. Lakukan review silang minimal satu anggota.
+9. Catat pekerjaan dan kendala pada issue/board kelompok.
 
 ### Branch yang Disarankan
 
 ```text
 main
-├── backend-core
-├── backend-transaction
-└── frontend-flutter
+├── feature-auth-order
+├── feature-menu-payment
+└── feature-kasir-ui
 ```
 
 ### Contoh Git Workflow
@@ -263,25 +180,24 @@ main
 ```bash
 git checkout main
 git pull origin main
-git checkout -b backend-core
+git checkout -b feature-auth-order
 
 # lakukan perubahan
 git add .
-git commit -m "feat: implement authentication"
-git push -u origin backend-core
+git commit -m "feat: implement login and role routing"
+git push -u origin feature-auth-order
 ```
 
-Buat Pull Request ke `main` setelah test lulus.
+Buat Pull Request ke `main` setelah `flutter analyze` bersih.
 
 ---
 
 ## 8. Ketergantungan Antaranggota
 
-- Anggota 1 menyediakan struktur user, role, product, dan category.
-- Anggota 2 menggunakan relasi user/product dari Anggota 1 untuk order dan payment.
-- Anggota 1 dan 2 menyepakati migration serta model agar dapat dijalankan bersama.
-- Anggota 3 mengembangkan UI menggunakan kontrak API dan mock data sebelum endpoint final tersedia.
-- Anggota 2 menyediakan kontrak checkout/payment agar Anggota 3 dapat membangun UI.
+- Anggota 1 menyediakan setup Firebase, akun awal, dan routing role lebih dulu karena semua bagian lain bergantung padanya.
+- Anggota 2 dan 3 bersepakat soal model `MenuItem` dan `CartItem` di awal.
+- Anggota 3 memanggil `OrderService` (Anggota 1) dan `PaymentService` (Anggota 2); kedua signature disepakati lebih dulu di `api-documentation.md`.
+- Anggota 3 dapat membangun UI dengan data contoh dan `MockPaymentService` sebelum service final tersedia.
 - Ketiganya melakukan integration testing sebelum UAT.
 
 ---
@@ -292,58 +208,52 @@ Target awal kontribusi adalah sekitar sepertiga per orang. Persentase ini merupa
 
 | Anggota | Target kontribusi | Dasar evaluasi |
 |---|---:|---|
-| Anggota 1 | 33% | Auth, role, produk, kategori, core backend |
-| Anggota 2 | 34% | Transaksi, checkout, payment, webhook |
-| Anggota 3 | 33% | UI Flutter, state, integrasi API, APK |
+| Anggota 1 | 33% | Setup, auth, role, Rules, pesanan |
+| Anggota 2 | 34% | CRUD menu, integrasi MiomiPay |
+| Anggota 3 | 33% | UI Kasir, keranjang, checkout, APK |
 
-Evaluasi akhir mempertimbangkan kompleksitas, kualitas, test, dokumentasi, dan kontribusi integrasi—bukan hanya jumlah file atau baris kode.
+Evaluasi akhir mempertimbangkan kompleksitas, kualitas, pengujian, dokumentasi, dan kontribusi integrasi, bukan hanya jumlah file atau baris kode. Integrasi MiomiPay bergantung pada akses dan dokumentasi dari provider, sehingga bobotnya perlu ditinjau ulang bila akses terlambat.
 
 ---
 
 ## 10. Checklist Penyelesaian per Anggota
 
 ### Anggota 1
-- [ ] PostgreSQL terkoneksi.
-- [ ] Migration core berjalan.
+- [ ] Firebase Authentication dan Firestore aktif.
+- [ ] Akun Admin dan Kasir awal tersedia.
 - [ ] Login/logout berfungsi.
-- [ ] Role Admin/Kasir berfungsi.
-- [ ] CRUD produk berfungsi.
-- [ ] CRUD kategori berfungsi.
-- [ ] Search/filter berfungsi.
-- [ ] Test dan dokumentasi tersedia.
+- [ ] Routing role berfungsi; akun nonaktif ditolak.
+- [ ] Security Rules ditulis dan diuji.
+- [ ] Pesanan tersimpan dengan invoice dan snapshot item.
+- [ ] Dokumentasi setup tersedia.
 
 ### Anggota 2
-- [ ] Migration transaksi berjalan.
-- [ ] Checkout menghitung harga di backend.
-- [ ] Invoice unik.
-- [ ] Order dan item tersimpan atomik.
-- [ ] Payment service tersedia.
-- [ ] Webhook diverifikasi.
-- [ ] Webhook idempotent.
-- [ ] Status pembayaran diuji.
-- [ ] API riwayat dan receipt tersedia.
+- [ ] Tambah, lihat, ubah, dan hapus menu berfungsi.
+- [ ] Perubahan menu tampil real-time.
+- [ ] Validasi form menu berfungsi.
+- [ ] `PaymentService` mock berfungsi dan berlabel.
+- [ ] Integrasi MiomiPay sandbox berfungsi, atau status belum tersedia dicatat jujur.
+- [ ] Pemetaan status pembayaran terdokumentasi.
 
 ### Anggota 3
 - [ ] Flutter dapat dijalankan.
-- [ ] Login dan role navigation berfungsi.
-- [ ] Admin UI selesai.
-- [ ] Cashier UI selesai.
-- [ ] Cart dan checkout berfungsi.
-- [ ] Payment status ditampilkan.
-- [ ] Riwayat dan struk tampil.
-- [ ] Loading/error/empty state tersedia.
+- [ ] Daftar menu Kasir tampil real-time.
+- [ ] Keranjang berfungsi (tambah, ubah, hapus, total).
+- [ ] Checkout membuat pesanan.
+- [ ] Halaman pembayaran dan status tampil.
+- [ ] State loading, error, dan kosong tersedia.
 - [ ] APK berhasil dibangun.
 
 ---
 
 ## 11. Kriteria Penilaian Internal
 
-Gunakan kriteria berikut untuk evaluasi kerja kelompok:
 - Fungsi berjalan sesuai requirement.
+- Kesesuaian dengan spesifikasi penugasan (Flutter, Firebase, MiomiPay, dua role).
 - Kualitas dan keterbacaan kode.
-- Validasi dan keamanan.
+- Keamanan dasar (Rules, kunci API tidak bocor).
 - Integrasi dengan modul lain.
-- Test dan dokumentasi.
+- Pengujian dan dokumentasi.
 - Ketepatan waktu.
 - Kontribusi pada perbaikan bug dan finalisasi.
 
