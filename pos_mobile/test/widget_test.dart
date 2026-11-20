@@ -1,30 +1,79 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:pos_mobile/main.dart';
+import 'package:pos_mobile/services/fake/fake_auth_service.dart';
+import 'package:pos_mobile/services/fake/fake_menu_service.dart';
+import 'package:pos_mobile/services/fake/fake_order_service.dart';
+import 'package:pos_mobile/services/fake/fake_payment_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Full Authentication & Role Routing Flow Test', (WidgetTester tester) async {
+    final authService = FakeAuthService();
+    final menuService = FakeMenuService();
+    final orderService = FakeOrderService(menuService: menuService);
+    final paymentService = FakePaymentService();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      PosApp(
+        authService: authService,
+        menuService: menuService,
+        orderService: orderService,
+        paymentService: paymentService,
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    // 1. Awalnya harus berada di LoginScreen
+    expect(find.text('POS Mobile System'), findsOneWidget);
+    expect(find.text('Masuk'), findsOneWidget);
+    expect(find.text('Admin'), findsOneWidget);
+    expect(find.text('Kasir'), findsOneWidget);
+
+    // 2. Klik chip demo 'Admin'
+    await tester.tap(find.text('Admin'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('admin@contoh.com'), findsOneWidget);
+
+    // 3. Tekan tombol Masuk
+    await tester.tap(find.text('Masuk'));
+    await tester.pump(); // Trigger loading state
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    // 4. Harus berpindah ke AdminScreen
+    expect(find.text('Panel Admin POS'), findsOneWidget);
+    expect(find.text('ROLE: ADMIN'), findsOneWidget);
+    expect(find.text('Admin Toko'), findsOneWidget);
+
+    // 5. Logout dari Admin
+    await tester.tap(find.byIcon(Icons.logout));
+    await tester.pumpAndSettle();
+
+    // Dialog konfirmasi muncul
+    expect(find.text('Konfirmasi Logout'), findsOneWidget);
+    await tester.tap(find.text('Keluar'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    // 6. Kembali ke LoginScreen
+    expect(find.text('POS Mobile System'), findsOneWidget);
+
+    // 7. Klik chip demo 'Kasir'
+    await tester.tap(find.text('Kasir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('kasir@contoh.com'), findsOneWidget);
+
+    // 8. Tekan Masuk
+    await tester.tap(find.text('Masuk'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // 9. Harus berpindah ke KasirScreen
+    expect(find.text('Kasir POS'), findsOneWidget);
+    expect(find.text('ROLE: KASIR'), findsOneWidget);
+    expect(find.text('Kasir 1'), findsOneWidget);
   });
 }
