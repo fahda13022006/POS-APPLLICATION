@@ -1,32 +1,29 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/menu_provider.dart';
 import 'screens/auth_gate.dart';
-import 'services/app_services.dart';
 import 'services/services.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // Inisialisasi service suite Firebase secara terpusat (DI satu pintu).
-  // Langsung terintegrasi ke payment gateway resmi MiomiPay (QRIS).
-  final services = AppServices.firebase();
+void main() {
+  final authService = FakeAuthService();
+  final menuService = FakeMenuService();
+  final orderService = FakeOrderService(menuService: menuService);
+  final paymentService = MiomiPayService();
 
   runApp(
-    PosApp(services: services),
+    PosApp(
+      authService: authService,
+      menuService: menuService,
+      orderService: orderService,
+      paymentService: paymentService,
+    ),
   );
 }
 
 class PosApp extends StatelessWidget {
-  final AppServices? services;
   final AuthService? authService;
   final MenuService? menuService;
   final OrderService? orderService;
@@ -34,7 +31,6 @@ class PosApp extends StatelessWidget {
 
   const PosApp({
     super.key,
-    this.services,
     this.authService,
     this.menuService,
     this.orderService,
@@ -43,12 +39,11 @@ class PosApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Default fallback ke AppServices.fake() untuk pengujian unit & widget test
-    final effectiveServices = services ?? AppServices.fake();
-    final effectiveAuth = authService ?? effectiveServices.authService;
-    final effectiveMenu = menuService ?? effectiveServices.menuService;
-    final effectiveOrder = orderService ?? effectiveServices.orderService;
-    final effectivePayment = paymentService ?? effectiveServices.paymentService;
+    final effectiveAuth = authService ?? FakeAuthService();
+    final effectiveMenu = menuService ?? FakeMenuService();
+    final effectiveOrder =
+        orderService ?? FakeOrderService(menuService: effectiveMenu);
+    final effectivePayment = paymentService ?? MiomiPayService();
 
     return MultiProvider(
       providers: [
@@ -71,13 +66,93 @@ class PosApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
+          fontFamily: 'sans-serif',
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.indigo,
+            seedColor: const Color(0xFF2563EB),
             brightness: Brightness.light,
+          ).copyWith(
+            primary: const Color(0xFF2563EB),
+            secondary: const Color(0xFF10B981),
+            surface: Colors.white,
+            surfaceContainerHighest: const Color(0xFFF1F5F9),
           ),
           appBarTheme: const AppBarTheme(
-            centerTitle: true,
+            centerTitle: false,
             elevation: 0,
+            scrolledUnderElevation: 0,
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            titleTextStyle: TextStyle(
+              color: Color(0xFF0F172A),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+            iconTheme: IconThemeData(color: Color(0xFF64748B)),
+          ),
+          cardTheme: CardThemeData(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            color: Colors.white,
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide:
+                  const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFEF4444)),
+            ),
+            hintStyle: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 14,
+            ),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          dividerTheme: const DividerThemeData(
+            color: Color(0xFFE2E8F0),
+            thickness: 1,
+            space: 1,
           ),
         ),
         home: const AuthGate(),

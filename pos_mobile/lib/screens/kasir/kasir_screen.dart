@@ -16,19 +16,32 @@ class KasirScreen extends StatefulWidget {
 
 class _KasirScreenState extends State<KasirScreen> {
   String _selectedCategory = 'Semua';
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Konfirmasi Logout'),
-        content: const Text('Apakah Anda yakin ingin keluar dari akun Kasir?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Konfirmasi Logout',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+        content:
+            const Text('Apakah Anda yakin ingin keluar dari akun Kasir?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Batal'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444)),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Keluar'),
           ),
@@ -52,7 +65,6 @@ class _KasirScreenState extends State<KasirScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final user = context.watch<AuthProvider>().user;
     final menuProvider = context.watch<MenuProvider>();
     final cart = context.watch<CartProvider>();
@@ -67,108 +79,160 @@ class _KasirScreenState extends State<KasirScreen> {
       }
     ];
 
-    final filteredMenus = _selectedCategory == 'Semua'
+    var filteredMenus = _selectedCategory == 'Semua'
         ? allMenus
         : allMenus
             .where((m) =>
-                m.category?.toLowerCase() == _selectedCategory.toLowerCase())
+                m.category?.toLowerCase() ==
+                _selectedCategory.toLowerCase())
             .toList();
 
+    if (_searchQuery.isNotEmpty) {
+      filteredMenus = filteredMenus
+          .where((m) =>
+              m.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              (m.description
+                      ?.toLowerCase()
+                      .contains(_searchQuery.toLowerCase()) ??
+                  false))
+          .toList();
+    }
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('Kasir POS'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.point_of_sale_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Kasir',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Text(
+                  'Point of Sale',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
-          // Icon keranjang dengan badge jumlah item
-          Badge(
-            isLabelVisible: !cart.isEmpty,
-            label: Text('${cart.totalQuantity}'),
-            child: IconButton(
-              tooltip: 'Keranjang Belanja',
-              icon: const Icon(Icons.shopping_cart_outlined),
-              onPressed: () => _openCartBottomSheet(context),
+          // Info kasir
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Center(
+                    child: Text(
+                      (user?.name ?? 'K')[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  user?.name ?? 'Kasir',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF374151),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Cart button
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Badge(
+              isLabelVisible: !cart.isEmpty,
+              label: Text(
+                '${cart.totalQuantity}',
+                style: const TextStyle(fontSize: 10),
+              ),
+              child: IconButton(
+                tooltip: 'Keranjang',
+                icon: const Icon(Icons.shopping_cart_outlined, size: 22),
+                color: const Color(0xFF374151),
+                onPressed: () => _openCartBottomSheet(context),
+              ),
             ),
           ),
           IconButton(
             tooltip: 'Keluar',
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_rounded, size: 20),
+            color: const Color(0xFF94A3B8),
             onPressed: () => _confirmLogout(context),
           ),
+          const SizedBox(width: 4),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+        ),
       ),
       bottomNavigationBar: cart.isEmpty
           ? null
-          : Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    Badge(
-                      label: Text('${cart.totalQuantity}'),
-                      child: Icon(
-                        Icons.shopping_bag_rounded,
-                        color: theme.colorScheme.onPrimaryContainer,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Belanja:',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                          Text(
-                            CurrencyFormatter.formatRupiah(cart.totalPrice),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: () => _openCartBottomSheet(context),
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                      label: const Text('Lihat Keranjang'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          : _buildBottomCartBar(context, cart),
       body: Builder(
         builder: (context) {
-          // 1. Loading State
           if (menuProvider.isLoading && allMenus.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
+                  CircularProgressIndicator(color: Color(0xFF2563EB)),
                   SizedBox(height: 16),
-                  Text('Memuat katalog menu kasir...'),
+                  Text('Memuat katalog menu...'),
                 ],
               ),
             );
           }
 
-          // 2. Error State
           if (menuProvider.errorMessage != null && allMenus.isEmpty) {
             return Center(
               child: Padding(
@@ -176,24 +240,17 @@ class _KasirScreenState extends State<KasirScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      size: 60,
-                      color: theme.colorScheme.error,
-                    ),
+                    Icon(Icons.error_outline_rounded,
+                        size: 56, color: Colors.red.shade400),
                     const SizedBox(height: 16),
-                    Text(
-                      'Gagal Memuat Menu',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const Text('Gagal Memuat Menu',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 8),
-                    Text(
-                      menuProvider.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: theme.colorScheme.error),
-                    ),
+                    Text(menuProvider.errorMessage!,
+                        textAlign: TextAlign.center,
+                        style:
+                            const TextStyle(color: Color(0xFFEF4444))),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       onPressed: () => menuProvider.clearError(),
@@ -206,7 +263,6 @@ class _KasirScreenState extends State<KasirScreen> {
             );
           }
 
-          // 3. Empty State
           if (allMenus.isEmpty) {
             return Center(
               child: Padding(
@@ -214,23 +270,33 @@ class _KasirScreenState extends State<KasirScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.restaurant_menu_rounded,
-                      size: 64,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Belum Ada Menu Tersedia',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.inventory_2_outlined,
+                        size: 40,
+                        color: Color(0xFF2563EB),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Admin belum menambahkan daftar menu. Silakan hubungi admin.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade600),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Belum ada menu tersedia',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Admin belum menambahkan daftar menu.',
+                      style: TextStyle(
+                          fontSize: 13, color: Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
@@ -238,245 +304,616 @@ class _KasirScreenState extends State<KasirScreen> {
             );
           }
 
-          // 4. Katalog Menu
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header Info Kasir
+              // ===== Search & Filter =====
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: Column(
+                  children: [
+                    // Search bar
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() => _searchQuery = value);
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Cari nama menu...',
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          size: 20,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 11),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                              color: Color(0xFF2563EB), width: 1.5),
+                        ),
+                      ),
+                    ),
+
+                    // Category chips
+                    if (categories.length > 1) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 36,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: categories.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final cat = categories[index];
+                            final isSelected = _selectedCategory == cat;
+                            return GestureDetector(
+                              onTap: () {
+                                setState(
+                                    () => _selectedCategory = cat);
+                              },
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFF2563EB)
+                                      : Colors.white,
+                                  borderRadius:
+                                      BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFF2563EB)
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: const Color(
+                                                    0xFF2563EB)
+                                                .withValues(alpha: 0.2),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Text(
+                                  cat,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF374151),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+              // Result info bar
+              Container(
+                color: const Color(0xFFF8FAFC),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: theme.colorScheme.tertiary,
-                      child: const Icon(
-                        Icons.person,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.name ?? 'Kasir 1',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          Text(
-                            user?.email ?? '',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.tertiary,
+                        color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text(
-                        'KASIR AKTIF',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                      child: Text(
+                        '${filteredMenus.length} menu',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB),
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _searchQuery.isNotEmpty
+                          ? 'hasil pencarian "$_searchQuery"'
+                          : _selectedCategory != 'Semua'
+                              ? 'pada kategori "$_selectedCategory"'
+                              : 'tersedia',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              // Filter Kategori Chips
-              if (categories.length > 1)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 10.0,
-                  ),
-                  child: Row(
-                    children: categories.map((cat) {
-                      final isSelected = _selectedCategory == cat;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: FilterChip(
-                          label: Text(cat),
-                          selected: isSelected,
-                          onSelected: (_) {
-                            setState(() {
-                              _selectedCategory = cat;
-                            });
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-
-              // Daftar Menu
+              // Grid menu
               Expanded(
                 child: filteredMenus.isEmpty
                     ? Center(
-                        child: Text(
-                          'Tidak ada menu pada kategori "$_selectedCategory"',
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16.0),
-                        itemCount: filteredMenus.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final item = filteredMenus[index];
-                          final qtyInCart = cart.getItemQuantity(item.id);
-
-                          return Card(
-                            elevation: 1,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              side: qtyInCart > 0
-                                  ? BorderSide(
-                                      color: theme.colorScheme.primary,
-                                      width: 1.5,
-                                    )
-                                  : BorderSide.none,
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  // Avatar
-                                  CircleAvatar(
-                                    radius: 24,
-                                    backgroundColor:
-                                        theme.colorScheme.secondaryContainer,
-                                    child: Text(
-                                      item.name.isNotEmpty
-                                          ? item.name[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(
-                                        color: theme
-                                            .colorScheme.onSecondaryContainer,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-
-                                  // Detail Menu
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          CurrencyFormatter.formatRupiah(
-                                            item.price,
-                                          ),
-                                          style: TextStyle(
-                                            color: theme.colorScheme.primary,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        if (item.category != null &&
-                                            item.category!.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: theme.colorScheme
-                                                  .surfaceContainerHighest,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              item.category!,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: theme
-                                                    .colorScheme.onSurfaceVariant,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-
-                                  // Kontrol Keranjang
-                                  if (qtyInCart == 0)
-                                    FilledButton.tonalIcon(
-                                      onPressed: () => cart.addItem(item),
-                                      icon: const Icon(Icons.add, size: 18),
-                                      label: const Text('Tambah'),
-                                    )
-                                  else
-                                    Row(
-                                      children: [
-                                        IconButton.filledTonal(
-                                          icon: const Icon(Icons.remove, size: 16),
-                                          onPressed: () =>
-                                              cart.decrementQuantity(item.id),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8.0,
-                                          ),
-                                          child: Text(
-                                            '$qtyInCart',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton.filled(
-                                          icon: const Icon(Icons.add, size: 16),
-                                          onPressed: () =>
-                                              cart.incrementQuantity(item.id),
-                                        ),
-                                      ],
-                                    ),
-                                ],
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: const Icon(
+                                Icons.search_off_rounded,
+                                size: 36,
+                                color: Color(0xFF94A3B8),
                               ),
                             ),
-                          );
+                            const SizedBox(height: 14),
+                            Text(
+                              _searchQuery.isNotEmpty
+                                  ? 'Tidak ada hasil untuk "$_searchQuery"'
+                                  : 'Tidak ada menu di kategori "$_selectedCategory"',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (_searchQuery.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                                child: const Text('Hapus pencarian'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : GridView.builder(
+                        padding:
+                            const EdgeInsets.fromLTRB(14, 14, 14, 100),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.72,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        itemCount: filteredMenus.length,
+                        itemBuilder: (context, index) {
+                          final item = filteredMenus[index];
+                          final qtyInCart =
+                              cart.getItemQuantity(item.id);
+                          return _buildMenuCard(
+                              context, item, qtyInCart, cart);
                         },
                       ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildBottomCartBar(BuildContext context, CartProvider cart) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 16,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => _openCartBottomSheet(context),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(
+                        Icons.shopping_bag_rounded,
+                        color: Color(0xFF2563EB),
+                        size: 24,
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2563EB),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${cart.totalQuantity}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${cart.totalQuantity} item dipilih',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    Text(
+                      CurrencyFormatter.formatRupiah(cart.totalPrice),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton(
+                onPressed: () => _openCartBottomSheet(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Keranjang',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Icon(Icons.arrow_forward_rounded, size: 18),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuCard(BuildContext context, dynamic item, int qtyInCart,
+      CartProvider cart) {
+    final isInCart = qtyInCart > 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isInCart
+              ? const Color(0xFF2563EB).withValues(alpha: 0.5)
+              : const Color(0xFFE2E8F0),
+          width: isInCart ? 1.5 : 1,
+        ),
+        boxShadow: isInCart
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Image
+          Expanded(
+            flex: 3,
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(13)),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  item.imageUrl != null && item.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _buildMenuImagePlaceholder(item),
+                        )
+                      : _buildMenuImagePlaceholder(item),
+
+                  // Kategori badge
+                  if (item.category != null && item.category!.isNotEmpty)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color:
+                              Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          item.category!,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Qty badge
+                  if (isInCart)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 26,
+                        height: 26,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF2563EB),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '$qtyInCart',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Info
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF0F172A),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    CurrencyFormatter.formatRupiah(item.price),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                  const Spacer(),
+
+                  // Tombol tambah / qty control
+                  if (qtyInCart == 0)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 32,
+                      child: FilledButton(
+                        onPressed: () => cart.addItem(item),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_rounded,
+                                size: 15, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'Tambah',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: const Color(0xFF2563EB)
+                                .withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () =>
+                                  cart.decrementQuantity(item.id),
+                              borderRadius: const BorderRadius.horizontal(
+                                  left: Radius.circular(8)),
+                              child: const SizedBox(
+                                height: 32,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.remove_rounded,
+                                    size: 16,
+                                    color: Color(0xFF2563EB),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '$qtyInCart',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () =>
+                                  cart.incrementQuantity(item.id),
+                              borderRadius: const BorderRadius.horizontal(
+                                  right: Radius.circular(8)),
+                              child: const SizedBox(
+                                height: 32,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.add_rounded,
+                                    size: 16,
+                                    color: Color(0xFF2563EB),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuImagePlaceholder(dynamic item) {
+    return Container(
+      color: const Color(0xFFF1F5F9),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.restaurant_rounded,
+              size: 32,
+              color: Color(0xFF94A3B8),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.name.isNotEmpty
+                  ? item.name[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

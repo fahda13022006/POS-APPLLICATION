@@ -223,16 +223,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('Pembayaran Pesanan'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        title: const Text(
+          'Pembayaran',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F172A),
+          ),
+        ),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             tooltip: 'Tutup / Kembali',
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close_rounded,
+                color: Color(0xFF64748B)),
             onPressed: () => Navigator.of(context).pop(),
           ),
+          const SizedBox(width: 4),
         ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+        ),
       ),
       body: _isLoading
           ? const Center(
