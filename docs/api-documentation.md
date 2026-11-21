@@ -173,36 +173,31 @@ Dua implementasi:
 
 Implementasi dipilih melalui konfigurasi, misalnya `--dart-define=PAYMENT_MODE=mock|miomipay`.
 
-### 6.1 Yang Harus Diisi dari Dokumentasi Resmi MiomiPay
+### 6.1 Data dari Dokumentasi Resmi MiomiPay
 
-Dokumentasi tidak tersedia di halaman publik `https://pg.miomidev.com/` (halaman tersebut adalah login dashboard). Ambil dari dashboard setelah mendaftar. Isi tabel ini sebelum mengimplementasikan `MiomiPayService`:
-
-| Item | Nilai (isi dari dokumentasi) |
+| Item | Nilai (dari dokumentasi resmi MiomiPay) |
 |---|---|
-| Base URL sandbox | _belum diisi_ |
-| Cara autentikasi (header/kunci) | _belum diisi_ |
-| Endpoint membuat tagihan | _belum diisi_ |
-| Field request wajib (nominal, referensi, dll.) | _belum diisi_ |
-| Format respons (ID transaksi, instruksi pembayaran) | _belum diisi_ |
-| Metode pembayaran yang didukung | _belum diisi_ |
-| Endpoint cek status | _belum diisi_ (jika tidak ada, lihat catatan di bawah) |
-| Daftar status provider dan pemetaannya | _belum diisi_ |
-| Masa berlaku tagihan | _belum diisi_ |
-| Cara mensimulasikan pembayaran sukses/gagal di sandbox | _belum diisi_ |
-
-Jika MiomiPay tidak menyediakan endpoint cek status, alur verifikasi pada aplikasi tanpa server tidak dapat dibuat andal. Dalam kasus itu catat keterbatasannya dan diskusikan dengan pelatih apakah Cloud Functions diperbolehkan untuk menerima callback.
+| Base URL sandbox | `https://pg.miomidev.com` |
+| Cara autentikasi | Header `Authorization: Bearer <API_KEY>`, `Content-Type: application/json`, `Accept: application/json` |
+| Sandbox API Key | `MP-SB-xNzYaBAIHJ2XBs5BlYFNIt8kyRYvwitU` (awalan `MP-SB-` untuk testing sandbox) |
+| Production API Key | Awalan `MP-LIVE-` untuk QRIS GoPay Merchant riil |
+| Endpoint membuat tagihan | `POST /api/v1/payment/create` |
+| Field request wajib | `external_id` (string), `amount` (int rupiah), `customer_name` (string), `description` (string), `success_redirect_url` (opsional) |
+| Format respons (data) | `reference`, `invoice_number`, `external_id`, `amount`, `payment_method`, `status`, `checkout_url`, `qr_image_url`, `qr_string`, `expires_at` |
+| Metode pembayaran | QRIS (`qris`) |
+| Endpoint cek status | `GET /api/v1/payment/{reference}/status` |
+| Notifikasi Webhook | `POST <webhook_url>` dengan header `X-MiomiPay-Event: payment.success` dan `X-MiomiPay-Signature: <hmac-sha256>` |
+| Webhook Secret | `whsec_e9E7wm5R36vpuBJMERBVmk82MyiGzT4v` (disimpan di Cloud Functions) |
 
 ### 6.2 Pemetaan Status
 
-Isi setelah daftar status MiomiPay diketahui.
-
-| Status MiomiPay | Status internal |
-|---|---|
-| _isi_ | `paid` |
-| _isi_ | `pending` |
-| _isi_ | `failed` |
-| _isi_ | `expired` |
-| _isi_ | `cancelled` |
+| Status MiomiPay | Status internal | Keterangan |
+|---|---|---|
+| `PAID`, `SUCCESS`, `SETTLEMENT` | `paid` | Pembayaran berhasil; order menjadi `paid` dan dicatat `paidAt` |
+| `PENDING`, `AWAITING_PAYMENT`, `UNPAID` | `pending` | Menunggu pembayaran oleh pelanggan |
+| `FAILED`, `DENY`, `FAILURE` | `failed` | Transaksi gagal |
+| `EXPIRED`, `EXPIRE` | `expired` | Tagihan kedaluwarsa; order menjadi `expired` |
+| `CANCELLED`, `CANCELED`, `CANCEL` | `cancelled` | Pembayaran dibatalkan kasir/sistem |
 
 ### 6.3 Alur Pembayaran
 

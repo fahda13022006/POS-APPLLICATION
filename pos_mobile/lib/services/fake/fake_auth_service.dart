@@ -14,7 +14,7 @@ class FakeAuthService implements AuthService {
         isActive: true,
       ),
       'passwords': ['password123', 'admin123'],
-      'aliases': ['admin@contoh.com', 'admin@pos.com'],
+      'aliases': ['admin@contoh.com', 'admin@pos.com', 'admin@post.test'],
     },
     {
       'user': const AppUser(
@@ -25,7 +25,7 @@ class FakeAuthService implements AuthService {
         isActive: true,
       ),
       'passwords': ['password123', 'kasir123'],
-      'aliases': ['kasir@contoh.com', 'kasir@pos.com'],
+      'aliases': ['kasir@contoh.com', 'kasir@pos.com', 'kasir@post.test'],
     },
     {
       'user': const AppUser(

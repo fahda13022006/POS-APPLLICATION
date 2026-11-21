@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -23,12 +26,39 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _isLoading = true;
   bool _isChecking = false;
   String? _errorMessage;
+  Timer? _autoPollTimer;
 
   @override
   void initState() {
     super.initState();
     _currentOrder = widget.order;
     _initPayment();
+  }
+
+  @override
+  void dispose() {
+    _autoPollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoPoll() {
+    _autoPollTimer?.cancel();
+    if (_paymentInfo?.status != PaymentStatus.pending) return;
+
+    // Polling mandiri setiap 5 detik selama halaman terbuka.
+    _autoPollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      if (_paymentInfo?.status != PaymentStatus.pending) {
+        _autoPollTimer?.cancel();
+        return;
+      }
+      _checkPaymentStatus(silent: true);
+    });
+  }
+
+  void _stopAutoPoll() {
+    _autoPollTimer?.cancel();
+    _autoPollTimer = null;
   }
 
   Future<void> _initPayment() async {
@@ -55,6 +85,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           _currentOrder = updated ?? _currentOrder.copyWith(payment: payment);
           _isLoading = false;
         });
+        _startAutoPoll();
       }
     } catch (e) {
       if (mounted) {
@@ -66,7 +97,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  Future<void> _checkPaymentStatus() async {
+  Future<void> _checkPaymentStatus({bool silent = false}) async {
     if (_paymentInfo == null) return;
 
     setState(() {
@@ -92,67 +123,104 @@ class _PaymentScreenState extends State<PaymentScreen> {
           _isChecking = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              status == PaymentStatus.paid
-                  ? 'Pembayaran berhasil diverifikasi (Lunas)!'
-                  : 'Status pembayaran saat ini: ${status.name}',
+        if (status != PaymentStatus.pending) {
+          _stopAutoPoll();
+        }
+
+        // Snackbar hanya untuk aksi manual atau saat benar-benar lunas,
+        // agar polling otomatis tidak mengganggu.
+        if (!silent || status == PaymentStatus.paid) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                status == PaymentStatus.paid
+                    ? 'Pembayaran berhasil diverifikasi (Lunas)!'
+                    : 'Status pembayaran saat ini: ${status.name}',
+              ),
+              behavior: SnackBarBehavior.floating,
             ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isChecking = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal memeriksa status: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal memeriksa status: $e'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
       }
     }
   }
 
-  // Helper untuk simulasi perubahan status dari FakePaymentService
-  Future<void> _simulateStatus(PaymentStatus status) async {
-    if (_paymentInfo == null) return;
-
-    final paymentService = context.read<PaymentService>();
-    // Cek apakah paymentService memiliki fungsi simulasi status
-    try {
-      // Menggunakan dynamic invocation pada FakePaymentService
-      (paymentService as dynamic).simulateStatusChange(
-        _paymentInfo!.reference,
-        status,
-      );
-    } catch (_) {}
-
-    await _checkPaymentStatus();
-  }
-
   Color _getStatusColor(ThemeData theme) {
     if (_currentOrder.isPaid) return Colors.green.shade600;
-    if (_currentOrder.isCancelled) return Colors.red.shade600;
-    if (_currentOrder.isExpired) return Colors.grey.shade600;
+    final paymentStatus = _paymentInfo?.status;
+    if (_currentOrder.isCancelled ||
+        paymentStatus == PaymentStatus.cancelled ||
+        paymentStatus == PaymentStatus.failed) {
+      return Colors.red.shade600;
+    }
+    if (_currentOrder.isExpired || paymentStatus == PaymentStatus.expired) {
+      return Colors.grey.shade600;
+    }
     return Colors.orange.shade700;
   }
 
   String _getStatusText() {
     if (_currentOrder.isPaid) return 'LUNAS (BERHASIL)';
-    if (_currentOrder.isCancelled) return 'DIBATALKAN';
-    if (_currentOrder.isExpired) return 'KEDALUWARSA';
+    final paymentStatus = _paymentInfo?.status;
+    if (_currentOrder.isCancelled || paymentStatus == PaymentStatus.cancelled) {
+      return 'DIBATALKAN';
+    }
+    if (_currentOrder.isExpired || paymentStatus == PaymentStatus.expired) {
+      return 'KEDALUWARSA';
+    }
+    if (paymentStatus == PaymentStatus.failed) return 'PEMBAYARAN GAGAL';
     return 'MENUNGGU PEMBAYARAN';
+  }
+
+  Widget _buildQrPlaceholder(ThemeData theme) {
+    return Container(
+      width: 180,
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.qr_code_2_rounded,
+              size: 110,
+              color: theme.colorScheme.primary,
+            ),
+            Text(
+              'Scan QRIS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final paymentService = context.watch<PaymentService>();
 
     return Scaffold(
       appBar: AppBar(
@@ -217,41 +285,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Label Wajib: MOCK – bukan transaksi sungguhan
-                      if (paymentService.isMock)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.amber.shade700),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.amber.shade900,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  paymentService.modeLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.amber.shade900,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
                       // Kartu Status Pembayaran
                       Card(
                         elevation: 0,
@@ -318,43 +351,39 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             child: Column(
                               children: [
                                 Text(
-                                  _paymentInfo?.method ?? 'QRIS (Simulasi)',
+                                  _paymentInfo?.method ?? 'QRIS MiomiPay',
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 const SizedBox(height: 12),
 
-                                // Tampilan Mock QR Code
-                                Container(
-                                  width: 180,
-                                  height: 180,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
+                                // QRIS MiomiPay (gambar QR langsung dari server)
+                                if (_paymentInfo?.qrImageUrl != null &&
+                                    _paymentInfo!.qrImageUrl!.isNotEmpty)
+                                  ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.grey.shade300),
-                                  ),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.qr_code_2_rounded,
-                                          size: 110,
-                                          color: theme.colorScheme.primary,
-                                        ),
-                                        Text(
-                                          'Scan QRIS',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.grey.shade700,
+                                    child: Image.network(
+                                      _paymentInfo!.qrImageUrl!,
+                                      width: 180,
+                                      height: 180,
+                                      fit: BoxFit.contain,
+                                      loadingBuilder: (context, child, progress) {
+                                        if (progress == null) return child;
+                                        return const SizedBox(
+                                          width: 180,
+                                          height: 180,
+                                          child: Center(
+                                            child: CircularProgressIndicator(),
                                           ),
-                                        ),
-                                      ],
+                                        );
+                                      },
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          _buildQrPlaceholder(theme),
                                     ),
-                                  ),
-                                ),
+                                  )
+                                else
+                                  _buildQrPlaceholder(theme),
                                 const SizedBox(height: 14),
 
                                 Text(
@@ -372,8 +401,101 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                     fontSize: 14,
                                   ),
                                 ),
-                                const SizedBox(height: 16),
-
+                                if (_paymentInfo?.expiresAt != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Berlaku hingga: '
+                                    '${DateFormat('dd MMM yyyy, HH:mm').format(_paymentInfo!.expiresAt!)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                                if (_paymentInfo?.checkoutUrl != null &&
+                                    _paymentInfo!.checkoutUrl!.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  // Box Terpisah untuk Link Checkout (Bisa di-copy/paste)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: theme.colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.link_rounded,
+                                              size: 18,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Link Pembayaran / Checkout URL:',
+                                                style: theme.textTheme.labelMedium?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            TextButton.icon(
+                                              onPressed: () {
+                                                Clipboard.setData(
+                                                  ClipboardData(text: _paymentInfo!.checkoutUrl!),
+                                                );
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text('Link checkout berhasil disalin!'),
+                                                    duration: Duration(seconds: 2),
+                                                    behavior: SnackBarBehavior.floating,
+                                                  ),
+                                                );
+                                              },
+                                              icon: const Icon(Icons.copy_rounded, size: 16),
+                                              label: const Text('Salin Link'),
+                                              style: TextButton.styleFrom(
+                                                visualDensity: VisualDensity.compact,
+                                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surface,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.grey.shade300),
+                                          ),
+                                          child: SelectableText(
+                                            _paymentInfo!.checkoutUrl!,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: theme.colorScheme.primary,
+                                              fontFamily: 'monospace',
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Pelanggan dapat scan QRIS di atas atau membuka link ini di browser ponsel.',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 18),
                                 // Tombol Periksa Status
                                 FilledButton.tonalIcon(
                                   onPressed:
@@ -388,55 +510,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                         )
                                       : const Icon(Icons.sync_rounded),
                                   label: const Text('Periksa Status Pembayaran'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Panel Bantuan Simulasi Testing (Untuk Emulator/Reviewer)
-                        Card(
-                          color: theme.colorScheme.surfaceContainerHighest,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(14.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Simulasi Respon Provider (Pengujian Mock):',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () =>
-                                            _simulateStatus(PaymentStatus.paid),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.green.shade700,
-                                        ),
-                                        child: const Text('Bayar Berhasil'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () =>
-                                            _simulateStatus(PaymentStatus.failed),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.red.shade700,
-                                        ),
-                                        child: const Text('Simulasi Gagal'),
-                                      ),
-                                    ),
-                                  ],
                                 ),
                               ],
                             ),

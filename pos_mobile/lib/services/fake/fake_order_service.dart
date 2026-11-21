@@ -102,9 +102,21 @@ class FakeOrderService implements OrderService {
     final currentOrder = _orders[index];
     final isPaid = p.status == PaymentStatus.paid;
 
+    final String? orderStatus;
+    switch (p.status) {
+      case PaymentStatus.paid:
+        orderStatus = 'paid';
+      case PaymentStatus.expired:
+        orderStatus = 'expired';
+      case PaymentStatus.cancelled:
+        orderStatus = 'cancelled';
+      default:
+        orderStatus = null;
+    }
+
     _orders[index] = currentOrder.copyWith(
       payment: p,
-      status: isPaid ? 'paid' : currentOrder.status,
+      status: orderStatus ?? currentOrder.status,
       paidAt: isPaid ? (currentOrder.paidAt ?? DateTime.now()) : null,
       updatedAt: DateTime.now(),
     );
