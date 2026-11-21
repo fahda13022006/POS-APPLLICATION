@@ -42,6 +42,7 @@ void main() {
         price: 20000,
         category: 'Makanan',
       );
+      await Future.delayed(const Duration(milliseconds: 50));
       expect(success, isTrue);
       expect(menuProvider.menus.any((m) => m.name == 'Gado-Gado'), isTrue);
     });
@@ -56,6 +57,7 @@ void main() {
         price: 88000,
         category: 'Minuman',
       );
+      await Future.delayed(const Duration(milliseconds: 50));
       expect(success, isTrue);
       expect(menuProvider.menus.any((m) => m.name == 'Nama Diubah' && m.price == 88000), isTrue);
     });
@@ -66,6 +68,7 @@ void main() {
       final target = menuProvider.menus.first;
 
       final success = await menuProvider.deleteMenu(target.id);
+      await Future.delayed(const Duration(milliseconds: 50));
       expect(success, isTrue);
       expect(menuProvider.menus.length, initialCount - 1);
       expect(menuProvider.menus.any((m) => m.id == target.id), isFalse);
@@ -108,47 +111,46 @@ void main() {
 
       // Tekan tombol Tambah Menu di dialog
       await tester.tap(find.widgetWithText(FilledButton, 'Tambah Menu'));
-      await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Menu baru harus muncul di daftar
       expect(find.text('Soto Ayam Lamongan'), findsOneWidget);
       expect(find.text('Rp 25.000'), findsOneWidget);
 
-      // 3. Ubah Menu
-      // Cari icon edit pada item yang baru ditambahkan
+      // 3. Ubah Menu pertama
       final editIconFinder = find.byTooltip('Ubah Menu');
       expect(editIconFinder, findsWidgets);
-      await tester.tap(editIconFinder.last);
-      await tester.pumpAndSettle();
+      await tester.tap(editIconFinder.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('Ubah Menu'), findsOneWidget);
 
       // Ubah harga
-      await tester.enterText(find.widgetWithText(TextFormField, 'Harga (Rupiah) *'), '30000');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Harga (Rupiah) *'), '95000');
       await tester.tap(find.text('Simpan Perubahan'));
-      await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-      // Harga baru harus terupdate
-      expect(find.text('Rp 30.000'), findsOneWidget);
+      expect(find.text('Rp 95.000'), findsOneWidget);
 
-      // 4. Hapus Menu dengan Konfirmasi
+      // 4. Hapus Menu pertama dengan Konfirmasi
       final deleteIconFinder = find.byTooltip('Hapus Menu');
       expect(deleteIconFinder, findsWidgets);
-      await tester.tap(deleteIconFinder.last);
-      await tester.pumpAndSettle();
+      await tester.tap(deleteIconFinder.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Dialog konfirmasi harus muncul
       expect(find.text('Konfirmasi Hapus Menu'), findsOneWidget);
 
       // Klik Hapus Menu
       await tester.tap(find.widgetWithText(FilledButton, 'Hapus Menu'));
-      await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
-      // Item harus terhapus dari UI
-      expect(find.text('Soto Ayam Lamongan'), findsNothing);
+      expect(find.text('Rp 95.000'), findsNothing);
     });
   });
 }

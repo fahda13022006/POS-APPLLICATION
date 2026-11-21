@@ -22,14 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _fillSampleAccount(String email, String password) {
-    setState(() {
-      _emailController.text = email;
-      _passwordController.text = password;
-    });
-    context.read<AuthProvider>().clearError();
-  }
-
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -218,53 +210,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Akun Contoh untuk Mempermudah Pengujian di Emulator
-                      Text(
-                        'Pilihan Cepat untuk Pengujian (Emulator):',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          ActionChip(
-                            avatar: const Icon(Icons.admin_panel_settings, size: 16),
-                            label: const Text('Admin'),
-                            onPressed: isLoading
-                                ? null
-                                : () => _fillSampleAccount(
-                                      'admin@contoh.com',
-                                      'password123',
-                                    ),
-                          ),
-                          ActionChip(
-                            avatar: const Icon(Icons.point_of_sale, size: 16),
-                            label: const Text('Kasir'),
-                            onPressed: isLoading
-                                ? null
-                                : () => _fillSampleAccount(
-                                      'kasir@contoh.com',
-                                      'password123',
-                                    ),
-                          ),
-                          ActionChip(
-                            avatar: const Icon(Icons.block, size: 16),
-                            label: const Text('Akun Nonaktif'),
-                            onPressed: isLoading
-                                ? null
-                                : () => _fillSampleAccount(
-                                      'nonaktif@contoh.com',
-                                      'password123',
-                                    ),
-                          ),
-                        ],
                       ),
                     ],
                   ),

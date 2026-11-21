@@ -1,29 +1,31 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/menu_provider.dart';
 import 'screens/auth_gate.dart';
+import 'services/app_services.dart';
 import 'services/services.dart';
 
-void main() {
-  final authService = FakeAuthService();
-  final menuService = FakeMenuService();
-  final orderService = FakeOrderService(menuService: menuService);
-  final paymentService = FakePaymentService();
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Inisialisasi service suite Firebase secara terpusat (DI satu pintu)
+  final services = AppServices.firebase();
 
   runApp(
-    PosApp(
-      authService: authService,
-      menuService: menuService,
-      orderService: orderService,
-      paymentService: paymentService,
-    ),
+    PosApp(services: services),
   );
 }
 
 class PosApp extends StatelessWidget {
+  final AppServices? services;
   final AuthService? authService;
   final MenuService? menuService;
   final OrderService? orderService;
@@ -31,6 +33,7 @@ class PosApp extends StatelessWidget {
 
   const PosApp({
     super.key,
+    this.services,
     this.authService,
     this.menuService,
     this.orderService,
@@ -39,11 +42,12 @@ class PosApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveAuth = authService ?? FakeAuthService();
-    final effectiveMenu = menuService ?? FakeMenuService();
-    final effectiveOrder =
-        orderService ?? FakeOrderService(menuService: effectiveMenu);
-    final effectivePayment = paymentService ?? FakePaymentService();
+    // Default fallback ke AppServices.fake() untuk pengujian unit & widget test
+    final effectiveServices = services ?? AppServices.fake();
+    final effectiveAuth = authService ?? effectiveServices.authService;
+    final effectiveMenu = menuService ?? effectiveServices.menuService;
+    final effectiveOrder = orderService ?? effectiveServices.orderService;
+    final effectivePayment = paymentService ?? effectiveServices.paymentService;
 
     return MultiProvider(
       providers: [

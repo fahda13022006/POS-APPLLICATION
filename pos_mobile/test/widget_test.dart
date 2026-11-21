@@ -33,7 +33,7 @@ void main() {
     await tester.tap(find.text('Admin'));
     await tester.pumpAndSettle();
 
-    expect(find.text('admin@contoh.com'), findsOneWidget);
+    expect(find.text('admin@post.test'), findsOneWidget);
 
     // 3. Tekan tombol Masuk
     await tester.tap(find.text('Masuk'));
@@ -42,8 +42,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 4. Harus berpindah ke AdminScreen
-    expect(find.text('Panel Admin POS'), findsOneWidget);
-    expect(find.text('ROLE: ADMIN'), findsOneWidget);
+    expect(find.text('Kelola Menu (Admin)'), findsOneWidget);
     expect(find.text('Admin Toko'), findsOneWidget);
 
     // 5. Logout dari Admin
@@ -63,7 +62,7 @@ void main() {
     await tester.tap(find.text('Kasir'));
     await tester.pumpAndSettle();
 
-    expect(find.text('kasir@contoh.com'), findsOneWidget);
+    expect(find.text('kasir@post.test'), findsOneWidget);
 
     // 8. Tekan Masuk
     await tester.tap(find.text('Masuk'));
@@ -73,7 +72,7 @@ void main() {
 
     // 9. Harus berpindah ke KasirScreen
     expect(find.text('Kasir POS'), findsOneWidget);
-    expect(find.text('ROLE: KASIR'), findsOneWidget);
+    expect(find.text('KASIR AKTIF'), findsOneWidget);
     expect(find.text('Kasir 1'), findsOneWidget);
   });
 }

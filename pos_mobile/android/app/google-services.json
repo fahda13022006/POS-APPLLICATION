@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "750881375240",
+    "project_id": "pos-pinkpoint",
+    "storage_bucket": "pos-pinkpoint.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:750881375240:android:50d8b10b482852601e7dbd",
+        "android_client_info": {
+          "package_name": "com.example.pos_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCd_UGRuqnlH3MoG2XED4eN7sZAEonks60"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
