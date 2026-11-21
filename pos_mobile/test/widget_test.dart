@@ -4,14 +4,14 @@ import 'package:pos_mobile/main.dart';
 import 'package:pos_mobile/services/fake/fake_auth_service.dart';
 import 'package:pos_mobile/services/fake/fake_menu_service.dart';
 import 'package:pos_mobile/services/fake/fake_order_service.dart';
-import 'package:pos_mobile/services/fake/fake_payment_service.dart';
+import 'package:pos_mobile/services/miomipay/miomipay_service.dart';
 
 void main() {
   testWidgets('Full Authentication & Role Routing Flow Test', (WidgetTester tester) async {
     final authService = FakeAuthService();
     final menuService = FakeMenuService();
     final orderService = FakeOrderService(menuService: menuService);
-    final paymentService = FakePaymentService();
+    final paymentService = MiomiPayService();
 
     await tester.pumpWidget(
       PosApp(
@@ -26,14 +26,11 @@ void main() {
     // 1. Awalnya harus berada di LoginScreen
     expect(find.text('POS Mobile System'), findsOneWidget);
     expect(find.text('Masuk'), findsOneWidget);
-    expect(find.text('Admin'), findsOneWidget);
-    expect(find.text('Kasir'), findsOneWidget);
 
-    // 2. Klik chip demo 'Admin'
-    await tester.tap(find.text('Admin'));
+    // 2. Isi form dengan kredensial Admin
+    await tester.enterText(find.byType(TextFormField).first, 'admin@contoh.com');
+    await tester.enterText(find.byType(TextFormField).last, 'password123');
     await tester.pumpAndSettle();
-
-    expect(find.text('admin@post.test'), findsOneWidget);
 
     // 3. Tekan tombol Masuk
     await tester.tap(find.text('Masuk'));
@@ -58,11 +55,10 @@ void main() {
     // 6. Kembali ke LoginScreen
     expect(find.text('POS Mobile System'), findsOneWidget);
 
-    // 7. Klik chip demo 'Kasir'
-    await tester.tap(find.text('Kasir'));
+    // 7. Isi form dengan kredensial Kasir
+    await tester.enterText(find.byType(TextFormField).first, 'kasir@contoh.com');
+    await tester.enterText(find.byType(TextFormField).last, 'password123');
     await tester.pumpAndSettle();
-
-    expect(find.text('kasir@post.test'), findsOneWidget);
 
     // 8. Tekan Masuk
     await tester.tap(find.text('Masuk'));

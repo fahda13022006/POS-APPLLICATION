@@ -98,9 +98,23 @@ class FirebaseOrderService implements OrderService {
   @override
   Future<void> updatePaymentResult(String orderId, PaymentInfo p) async {
     final isPaid = p.status == PaymentStatus.paid;
+
+    // Status pesanan mengikuti status pembayaran final.
+    final String? orderStatus;
+    switch (p.status) {
+      case PaymentStatus.paid:
+        orderStatus = 'paid';
+      case PaymentStatus.expired:
+        orderStatus = 'expired';
+      case PaymentStatus.cancelled:
+        orderStatus = 'cancelled';
+      default:
+        orderStatus = null; // pending/failed: pesanan tetap bisa ditindaklanjuti
+    }
+
     final updateData = <String, dynamic>{
       'payment': p.toMap(),
-      if (isPaid) 'status': 'paid',
+      'status': ?orderStatus,
       if (isPaid) 'paidAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };

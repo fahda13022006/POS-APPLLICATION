@@ -16,7 +16,8 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Inisialisasi service suite Firebase secara terpusat (DI satu pintu)
+  // Inisialisasi service suite Firebase secara terpusat (DI satu pintu).
+  // Langsung terintegrasi ke payment gateway resmi MiomiPay (QRIS).
   final services = AppServices.firebase();
 
   runApp(

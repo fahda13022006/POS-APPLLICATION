@@ -5,17 +5,28 @@ enum PaymentStatus {
   expired,
   cancelled;
 
+  /// Memetakan status dari provider (MiomiPay memakai huruf kapital,
+  /// mis. PENDING/PAID/EXPIRED). Nilai yang tidak dikenal dianggap pending.
   static PaymentStatus fromString(String? value) {
     switch (value?.toLowerCase()) {
       case 'paid':
+      case 'success':
+      case 'settlement':
         return PaymentStatus.paid;
       case 'failed':
+      case 'deny':
+      case 'failure':
         return PaymentStatus.failed;
       case 'expired':
+      case 'expire':
         return PaymentStatus.expired;
       case 'cancelled':
+      case 'canceled':
+      case 'cancel':
         return PaymentStatus.cancelled;
       case 'pending':
+      case 'awaiting_payment':
+      case 'unpaid':
       default:
         return PaymentStatus.pending;
     }
@@ -25,13 +36,19 @@ enum PaymentStatus {
 }
 
 class PaymentInfo {
-  final String provider; // 'mock' atau 'miomipay'
+  final String provider; // 'miomipay'
   final String reference; // Referensi/ID transaksi
   final String method; // Metode pembayaran, misal 'QRIS'
   final int amount; // Harus sama dengan total pesanan
   final PaymentStatus status;
   final String? paymentUrl; // URL / QR info
   final DateTime? expiresAt;
+
+  // Field khusus MiomiPay (opsional)
+  final String? externalId; // ID eksternal yang dikirim saat create payment
+  final String? checkoutUrl; // URL halaman checkout MiomiPay
+  final String? qrImageUrl; // URL gambar QRIS
+  final String? qrString; // String mentah QRIS
 
   const PaymentInfo({
     required this.provider,
@@ -41,11 +58,15 @@ class PaymentInfo {
     required this.status,
     this.paymentUrl,
     this.expiresAt,
+    this.externalId,
+    this.checkoutUrl,
+    this.qrImageUrl,
+    this.qrString,
   });
 
   factory PaymentInfo.fromMap(Map<String, dynamic> map) {
     return PaymentInfo(
-      provider: map['provider'] as String? ?? 'mock',
+      provider: map['provider'] as String? ?? 'miomipay',
       reference: map['reference'] as String? ?? '',
       method: map['method'] as String? ?? '',
       amount: (map['amount'] as num?)?.toInt() ?? 0,
@@ -56,6 +77,10 @@ class PaymentInfo {
               ? map['expiresAt'] as DateTime
               : DateTime.tryParse(map['expiresAt'].toString()))
           : null,
+      externalId: map['externalId'] as String?,
+      checkoutUrl: map['checkoutUrl'] as String?,
+      qrImageUrl: map['qrImageUrl'] as String?,
+      qrString: map['qrString'] as String?,
     );
   }
 
@@ -68,6 +93,10 @@ class PaymentInfo {
       'status': status.toDbString(),
       if (paymentUrl != null) 'paymentUrl': paymentUrl,
       if (expiresAt != null) 'expiresAt': expiresAt?.toIso8601String(),
+      if (externalId != null) 'externalId': externalId,
+      if (checkoutUrl != null) 'checkoutUrl': checkoutUrl,
+      if (qrImageUrl != null) 'qrImageUrl': qrImageUrl,
+      if (qrString != null) 'qrString': qrString,
     };
   }
 
@@ -79,6 +108,10 @@ class PaymentInfo {
     PaymentStatus? status,
     String? paymentUrl,
     DateTime? expiresAt,
+    String? externalId,
+    String? checkoutUrl,
+    String? qrImageUrl,
+    String? qrString,
   }) {
     return PaymentInfo(
       provider: provider ?? this.provider,
@@ -88,9 +121,14 @@ class PaymentInfo {
       status: status ?? this.status,
       paymentUrl: paymentUrl ?? this.paymentUrl,
       expiresAt: expiresAt ?? this.expiresAt,
+      externalId: externalId ?? this.externalId,
+      checkoutUrl: checkoutUrl ?? this.checkoutUrl,
+      qrImageUrl: qrImageUrl ?? this.qrImageUrl,
+      qrString: qrString ?? this.qrString,
     );
   }
 
   @override
-  String toString() => 'PaymentInfo(ref: $reference, amount: $amount, status: $status)';
+  String toString() =>
+      'PaymentInfo(ref: $reference, amount: $amount, status: $status)';
 }

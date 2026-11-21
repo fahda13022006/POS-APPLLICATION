@@ -63,17 +63,19 @@ void main() {
 
     test('PaymentInfo and PaymentStatus serialize correctly', () {
       final payment = PaymentInfo(
-        provider: 'mock',
-        reference: 'MOCK-1234',
+        provider: 'miomipay',
+        reference: 'MP-SB-1234',
         method: 'QRIS',
         amount: 50000,
         status: PaymentStatus.pending,
       );
 
       final map = payment.toMap();
+      expect(map['provider'], 'miomipay');
       expect(map['status'], 'pending');
 
       final fromMap = PaymentInfo.fromMap(map);
+      expect(fromMap.provider, 'miomipay');
       expect(fromMap.status, PaymentStatus.pending);
       expect(fromMap.amount, 50000);
     });
@@ -217,15 +219,13 @@ void main() {
     });
   });
 
-  group('FakeOrderService and FakePaymentService Tests', () {
+  group('FakeOrderService Tests', () {
     late FakeMenuService menuService;
     late FakeOrderService orderService;
-    late FakePaymentService paymentService;
 
     setUp(() {
       menuService = FakeMenuService();
       orderService = FakeOrderService(menuService: menuService);
-      paymentService = FakePaymentService();
     });
 
     tearDown(() {
@@ -271,19 +271,20 @@ void main() {
       expect(order.status, 'pending_payment');
       expect(order.invoiceNumber.startsWith('INV-'), isTrue);
 
-      // Test FakePaymentService
-      expect(paymentService.isMock, isTrue);
-      expect(paymentService.modeLabel, contains('MOCK'));
+      final paymentInfo = PaymentInfo(
+        provider: 'miomipay',
+        reference: 'MP-SB-ABC123XYZ',
+        method: 'QRIS',
+        amount: order.total,
+        status: PaymentStatus.pending,
+      );
 
-      final paymentInfo = await paymentService.createPayment(order);
-      expect(paymentInfo.amount, order.total);
-      expect(paymentInfo.status, PaymentStatus.pending);
+      await orderService.updatePaymentResult(order.id, paymentInfo);
+      final pendingOrder = await orderService.getOrder(order.id);
+      expect(pendingOrder?.status, 'pending_payment');
+      expect(pendingOrder?.payment?.reference, 'MP-SB-ABC123XYZ');
 
       // Update payment to paid
-      paymentService.simulateStatusChange(paymentInfo.reference, PaymentStatus.paid);
-      final newStatus = await paymentService.checkStatus(paymentInfo.reference);
-      expect(newStatus, PaymentStatus.paid);
-
       await orderService.updatePaymentResult(
         order.id,
         paymentInfo.copyWith(status: PaymentStatus.paid),
