@@ -3,17 +3,15 @@
 
 | Informasi | Detail |
 |---|---|
-| Versi dokumen | 1.0 |
-| Tanggal | 14 November 2026 |
+| Versi dokumen | 1.1 (revisi agar sesuai spesifikasi penugasan) |
+| Tanggal | 20 November 2026 |
 | Status | Draft – spesifikasi MVP |
 | Platform | Android |
 | Frontend | Flutter |
-| Backend | Laravel REST API |
-| Database | PostgreSQL |
-| Autentikasi | Laravel Sanctum |
+| Database & Auth | Firebase (Authentication + Cloud Firestore) |
 | Payment gateway | MiomiPay API |
 
-> **Catatan:** Flutter tetap menjadi frontend aplikasi mobile. Laravel menggantikan Firebase sebagai backend/API dan PostgreSQL menjadi database utama. Detail endpoint, autentikasi, signature, callback, dan metode pembayaran MiomiPay harus mengikuti dokumentasi resmi provider yang benar-benar digunakan. Jangan mengarang endpoint atau kredensial.
+> **Catatan:** Spesifikasi teknis mengikuti penugasan Mobile Apps: Flutter untuk aplikasi, Firebase untuk autentikasi dan database, MiomiPay untuk pembayaran. Tidak ada server backend sendiri. Detail endpoint, autentikasi, dan format request/response MiomiPay harus mengikuti dokumentasi resmi dari dashboard MiomiPay. Jangan mengarang endpoint atau kredensial.
 
 ---
 
@@ -21,56 +19,53 @@
 
 ### 1.1 Latar Belakang
 
-Point of Sale (POS) adalah sistem yang membantu usaha mencatat penjualan, mengelola produk, menghitung tagihan, dan memproses pembayaran. Pencatatan manual dapat menyebabkan kesalahan perhitungan, data transaksi tidak konsisten, serta kesulitan menelusuri riwayat penjualan.
+Point of Sale (POS) membantu usaha mencatat penjualan, mengelola daftar menu, menghitung tagihan, dan menerima pembayaran. Pencatatan manual rawan salah hitung dan menyulitkan penelusuran transaksi.
 
-Aplikasi POS ini dikembangkan sebagai aplikasi mobile menggunakan Flutter. Backend Laravel menyediakan REST API dan business logic, sedangkan PostgreSQL menyimpan data pengguna, produk, pesanan, dan pembayaran. Sistem memiliki dua role utama: Admin dan Kasir.
+Aplikasi ini dibangun sebagai aplikasi mobile Flutter. Firebase Authentication menangani login, sedangkan Cloud Firestore menyimpan data pengguna, menu, dan pesanan secara real-time. Pembayaran diproses melalui MiomiPay. Sistem memiliki dua role: Admin dan Kasir.
 
 ### 1.2 Tujuan
 
-1. Membangun aplikasi POS mobile menggunakan Flutter.
-2. Menerapkan login dan otorisasi berbasis role.
-3. Memungkinkan Admin mengelola produk dan kategori.
-4. Memungkinkan Kasir melihat katalog, membuat keranjang, dan melakukan checkout.
-5. Menghitung total transaksi secara aman di backend.
-6. Mengintegrasikan pembayaran melalui MiomiPay apabila dokumentasi dan akses sandbox tersedia.
-7. Menyimpan transaksi dan status pembayaran secara terpusat di PostgreSQL.
-8. Menyediakan riwayat dan bukti transaksi.
+1. Membangun aplikasi POS sederhana dengan Flutter.
+2. Menerapkan login dengan dua role (Admin dan Kasir) memakai Firebase Authentication.
+3. Memungkinkan Admin mengelola menu (CRUD) dengan data real-time di Firebase.
+4. Memungkinkan Kasir melihat menu, mengisi keranjang, dan melakukan checkout.
+5. Mengintegrasikan pembayaran melalui MiomiPay.
+6. Menyimpan pesanan dan status pembayaran di Firestore.
 
 ### 1.3 Pengguna Sasaran
 
-- **Admin:** mengelola produk, kategori, akun sesuai kewenangan, dan memantau transaksi.
-- **Kasir:** melihat produk, membuat pesanan, memproses pembayaran, dan melihat transaksi miliknya.
+- **Admin:** mengelola daftar menu.
+- **Kasir:** melihat menu, membuat pesanan, dan memproses pembayaran.
 
 ---
 
 ## 2. Ruang Lingkup
 
-### 2.1 In Scope – MVP
+### 2.1 In Scope – Wajib (sesuai penugasan)
 
-- Login, logout, dan informasi profil.
-- Role Admin dan Kasir.
-- CRUD produk.
-- CRUD kategori.
-- Upload foto produk (opsional untuk MVP).
-- Katalog produk, pencarian, dan filter kategori.
-- Keranjang belanja.
-- Checkout dan pembuatan invoice.
-- Integrasi MiomiPay.
-- Penerimaan dan verifikasi webhook pembayaran.
-- Riwayat transaksi dan detail/struk.
-- Validasi, pengujian, dan dokumentasi.
+- Login dan logout dengan Firebase Authentication.
+- Dua role: Admin dan Kasir, dengan halaman berbeda.
+- CRUD menu oleh Admin; data tersimpan dan tampil real-time.
+- Kasir melihat daftar menu yang diinput Admin.
+- Keranjang pesanan.
+- Checkout dan pembayaran melalui MiomiPay.
+- Penyimpanan pesanan dan status pembayaran.
 
-### 2.2 Out of Scope – MVP
+### 2.2 In Scope – Tambahan (opsional, dikerjakan jika waktu cukup)
 
+- Pencarian menu dan filter kategori.
+- Foto menu.
+- Riwayat transaksi dan tampilan struk.
+
+### 2.3 Out of Scope – MVP
+
+- Backend/server sendiri.
 - Multi-outlet atau multi-cabang.
-- Manajemen stok tingkat lanjut.
-- Supplier dan pembelian.
-- Akuntansi dan pembukuan.
-- Payroll.
-- Program loyalitas pelanggan.
-- Integrasi marketplace.
-- Retur/refund otomatis.
+- Manajemen stok.
+- Diskon, pajak, dan laporan keuangan.
+- Retur/refund.
 - Mode offline penuh.
+- Pembuatan akun Kasir dari dalam aplikasi (akun dibuat manual di Firebase Console).
 
 ---
 
@@ -79,20 +74,18 @@ Aplikasi POS ini dikembangkan sebagai aplikasi mobile menggunakan Flutter. Backe
 | Fitur | Admin | Kasir |
 |---|:---:|:---:|
 | Login/logout | Ya | Ya |
-| Melihat katalog produk | Ya | Ya |
-| Menambah produk | Ya | Tidak |
-| Mengubah produk | Ya | Tidak |
-| Menonaktifkan produk | Ya | Tidak |
-| Mengelola kategori | Ya | Tidak |
-| Membuat transaksi | Tidak* | Ya |
-| Checkout dan pembayaran | Tidak* | Ya |
-| Melihat seluruh transaksi | Ya | Tidak |
-| Melihat transaksi sendiri | Ya | Ya |
-| Melihat detail/struk | Ya | Ya, milik sendiri |
+| Melihat daftar menu | Ya | Ya |
+| Menambah menu | Ya | Tidak |
+| Mengubah nama/harga menu | Ya | Tidak |
+| Menghapus menu | Ya | Tidak |
+| Membuat pesanan dan checkout | Tidak* | Ya |
+| Pembayaran via MiomiPay | Tidak* | Ya |
+| Melihat seluruh transaksi (opsional) | Ya | Tidak |
+| Melihat transaksi sendiri (opsional) | Ya | Ya |
 
-\*Jika kebutuhan bisnis berubah, akses Admin untuk membuat transaksi dapat ditambahkan melalui keputusan tim.
+\*Jika kebutuhan berubah, akses Admin untuk transaksi dapat ditambahkan melalui keputusan tim.
 
-Otorisasi wajib divalidasi di backend Laravel. Menyembunyikan tombol pada Flutter saja tidak cukup untuk melindungi endpoint.
+Pembatasan akses wajib dipasang di **Firestore Security Rules**, bukan hanya dengan menyembunyikan tombol di Flutter. Tanpa backend, Rules adalah satu-satunya penjaga sisi server.
 
 ---
 
@@ -102,116 +95,90 @@ Otorisasi wajib divalidasi di backend Laravel. Menyembunyikan tombol pada Flutte
 
 **FR-001 – Login**
 - Pengguna memasukkan email dan password.
-- Flutter mengirim kredensial melalui HTTPS ke Laravel.
-- Laravel memvalidasi akun, password, dan status aktif.
-- Jika valid, Laravel mengembalikan access token dan data pengguna/role.
-- Flutter mengarahkan pengguna ke dashboard sesuai role.
+- Aplikasi memanggil Firebase Authentication.
+- Setelah berhasil, aplikasi membaca dokumen `users/{uid}` untuk mengetahui role dan status aktif.
+- Pengguna diarahkan ke halaman Admin atau Kasir sesuai role.
+- Akun tanpa dokumen `users/{uid}` atau dengan `isActive = false` ditolak dan di-logout.
 
 **FR-002 – Logout**
-- Token aktif dicabut di backend.
-- Token lokal dihapus dari secure storage.
+- Sesi Firebase diakhiri dan pengguna kembali ke halaman login.
 
 **FR-003 – Role Authorization**
-- Endpoint Admin hanya dapat diakses Admin.
-- Endpoint Kasir hanya dapat diakses Kasir.
-- Endpoint bersama dapat diakses sesuai matriks hak akses.
+- Halaman Admin hanya dapat dibuka oleh role `admin`; halaman Kasir hanya oleh role `kasir`.
+- Operasi tulis pada koleksi menu hanya diizinkan untuk Admin melalui Security Rules.
 
-### 4.2 Product & Category Management
+### 4.2 Manajemen Menu (Admin)
 
-**FR-004 – Create Product**
-Admin dapat menambahkan:
-- SKU/kode produk (unik).
-- Nama produk.
-- Kategori.
+**FR-004 – Create Menu**
+Admin menambahkan menu dengan:
+- Nama (wajib).
+- Harga dalam rupiah, bilangan bulat > 0 (wajib).
+- Kategori (opsional).
 - Deskripsi (opsional).
-- Harga.
-- Foto (opsional).
-- Status aktif/nonaktif.
+- Foto (opsional, tambahan).
 
-Validasi:
-- SKU dan nama wajib diisi.
-- SKU unik.
-- Harga lebih besar dari nol.
-- Kategori harus tersedia.
+**FR-005 – Read Menu (real-time)**
+Admin dan Kasir melihat daftar menu. Daftar memakai stream Firestore (`snapshots()`), sehingga perubahan dari Admin langsung muncul di layar Kasir tanpa refresh manual.
 
-**FR-005 – Read Product**
-Admin dan Kasir dapat melihat produk. Kasir hanya melihat produk aktif. Daftar mendukung pagination.
+**FR-006 – Update Menu**
+Admin mengubah nama, harga, dan atribut lain. Perubahan harga tidak mengubah pesanan yang sudah dibuat karena pesanan menyimpan snapshot.
 
-**FR-006 – Update Product**
-Admin dapat mengubah informasi produk. Perubahan harga tidak boleh mengubah snapshot harga pada transaksi terdahulu.
+**FR-007 – Delete Menu**
+Admin menghapus menu setelah konfirmasi. Pesanan lama tetap utuh karena item pesanan menyimpan snapshot nama dan harga, bukan referensi hidup ke menu.
 
-**FR-007 – Delete Product**
-Penghapusan menggunakan soft delete atau penonaktifan. Produk yang sudah dipakai pada transaksi tidak dihapus permanen.
+**FR-008 – Pencarian dan Filter (opsional)**
+Daftar menu dapat dicari berdasarkan nama dan difilter berdasarkan kategori. Pencarian dilakukan di sisi aplikasi atas data yang sudah dimuat.
 
-**FR-008 – Category Management**
-Admin dapat membuat, melihat, mengubah, dan menghapus kategori. Kategori yang masih digunakan produk tidak boleh dihapus tanpa penanganan relasi.
+### 4.3 Keranjang dan Checkout (Kasir)
 
-**FR-009 – Search & Filter**
-Katalog mendukung pencarian nama/SKU dan filter kategori.
+**FR-009 – Tambah ke Keranjang**
+Kasir menambahkan menu ke keranjang.
 
-### 4.3 Cart & Checkout
+**FR-010 – Ubah Kuantitas**
+Kasir menambah atau mengurangi jumlah item. Kuantitas harus bilangan bulat positif.
 
-**FR-010 – Add to Cart**
-Kasir dapat menambahkan produk aktif ke keranjang.
+**FR-011 – Hapus Item**
+Kasir menghapus item dari keranjang.
 
-**FR-011 – Update Quantity**
-Kasir dapat menambah atau mengurangi jumlah item. Kuantitas harus bilangan bulat positif.
-
-**FR-012 – Remove Item**
-Kasir dapat menghapus item dari keranjang.
-
-**FR-013 – Calculate Total**
-Flutter boleh menampilkan estimasi subtotal, tetapi Laravel menghitung ulang harga dan total berdasarkan database.
-
+**FR-012 – Hitung Total**
 Rumus:
 - Subtotal item = harga satuan × kuantitas.
-- Subtotal pesanan = jumlah seluruh subtotal item.
-- Total pembayaran = subtotal + pajak/biaya (jika kelak diterapkan) − diskon (jika kelak diterapkan).
+- Total = jumlah seluruh subtotal item.
 
-Untuk MVP tanpa pajak dan diskon, total pembayaran sama dengan subtotal pesanan.
+Tidak ada pajak atau diskon pada MVP. Karena tidak ada backend, perhitungan dilakukan di aplikasi. Untuk mengurangi risiko harga usang, saat checkout aplikasi membaca ulang dokumen menu dari Firestore dan menghitung total dari harga terbaru, bukan dari data keranjang yang tersimpan di memori.
 
-**FR-014 – Checkout**
-- Laravel memvalidasi produk dan kuantitas.
-- Laravel mengambil harga terbaru dari database.
-- Laravel membuat nomor invoice unik.
-- Laravel menyimpan order dan order items dalam satu database transaction.
-- Order dibuat dengan status `pending_payment`.
-- Sistem membuat payment attempt melalui MiomiPay.
+**FR-013 – Checkout**
+- Aplikasi memvalidasi bahwa keranjang tidak kosong dan semua menu masih ada.
+- Aplikasi membuat nomor invoice unik.
+- Aplikasi menyimpan dokumen pesanan ke `orders` dengan status `pending_payment`, berisi item (snapshot nama, harga, kuantitas), total, dan identitas Kasir.
+- Setelah pesanan tersimpan, aplikasi membuat tagihan pembayaran.
 
-### 4.4 Payment
+### 4.4 Pembayaran (MiomiPay)
 
-**FR-015 – Initiate Payment**
-Laravel mengirim permintaan pembayaran ke MiomiPay menggunakan kredensial server-side. Flutter tidak boleh menerima secret key provider.
+**FR-014 – Membuat Tagihan Pembayaran**
+Aplikasi mengirim permintaan pembuatan tagihan ke MiomiPay sesuai dokumentasi resmi, melalui `PaymentService` yang terpisah dari layar UI. Aplikasi menampilkan instruksi pembayaran (misalnya QR, nomor virtual account, atau tautan) berdasarkan respons MiomiPay.
 
-**FR-016 – Payment Status**
-Status internal pembayaran:
+**FR-015 – Status Pembayaran**
+Status pembayaran:
 - `pending`
 - `paid`
 - `failed`
 - `expired`
 - `cancelled`
 
-Status dari provider harus dipetakan ke status internal melalui aturan yang terdokumentasi.
+Status dari MiomiPay dipetakan ke status internal melalui aturan yang didokumentasikan di `docs/api-documentation.md`.
 
-**FR-017 – Webhook**
-- Laravel menyediakan endpoint webhook sesuai spesifikasi MiomiPay.
-- Signature/token atau mekanisme autentikasi provider diverifikasi.
-- Nominal, referensi, dan identitas transaksi dicocokkan.
-- Event duplikat tidak boleh memproses pembayaran dua kali.
-- Status `paid` hanya ditetapkan setelah notifikasi terverifikasi atau inquiry resmi provider.
+**FR-016 – Verifikasi Status**
+Karena tidak ada server yang dapat menerima webhook, aplikasi memeriksa status pembayaran ke MiomiPay (polling berkala atau tombol "Periksa status") menggunakan mekanisme yang tersedia di dokumentasi resmi. Pesanan baru ditandai `paid` setelah respons MiomiPay menyatakan pembayaran berhasil. Redirect atau tombol di aplikasi saja tidak cukup sebagai bukti pembayaran.
 
-**FR-018 – Payment Inquiry**
-Jika tersedia, backend dapat meminta status pembayaran ke provider saat webhook terlambat atau tidak diterima.
+### 4.5 Riwayat dan Struk (opsional)
 
-### 4.5 Transaction History & Receipt
+**FR-017 – Riwayat Transaksi**
+- Admin melihat seluruh transaksi.
+- Kasir hanya melihat transaksi miliknya.
 
-**FR-019 – Transaction History**
-- Admin dapat melihat seluruh transaksi.
-- Kasir hanya dapat melihat transaksi miliknya.
-- Daftar mendukung pagination dan filter tanggal/status.
-
-**FR-020 – Transaction Detail / Receipt**
-Menampilkan invoice, tanggal, kasir, item, kuantitas, harga snapshot, subtotal, total, metode pembayaran, dan status pembayaran.
+**FR-018 – Detail / Struk**
+Menampilkan invoice, tanggal, Kasir, item, kuantitas, harga snapshot, total, dan status pembayaran.
 
 ---
 
@@ -219,25 +186,21 @@ Menampilkan invoice, tanggal, kasir, item, kuantitas, harga snapshot, subtotal, 
 
 ### 5.1 Admin Flow
 1. Admin membuka aplikasi dan login.
-2. Sistem memvalidasi akun dan role.
-3. Admin masuk ke Dashboard Admin.
-4. Admin membuka Product Management atau Category Management.
-5. Admin melakukan tambah, lihat, ubah, atau nonaktifkan data.
-6. Laravel menyimpan perubahan ke PostgreSQL.
-7. Katalog Kasir mengambil data terbaru melalui API.
+2. Aplikasi memeriksa role dari `users/{uid}`.
+3. Admin masuk ke halaman Kelola Menu.
+4. Admin menambah, melihat, mengubah, atau menghapus menu.
+5. Perubahan tersimpan di Firestore dan langsung terlihat di layar Kasir.
 
-### 5.2 Cashier Flow
-1. Kasir login.
-2. Sistem mengarahkan Kasir ke Dashboard Kasir.
-3. Kasir mencari dan memilih produk.
-4. Produk dimasukkan ke keranjang.
-5. Kasir mengatur kuantitas dan memeriksa total.
-6. Kasir menekan Checkout.
-7. Laravel membuat order dan payment request.
-8. Flutter menampilkan instruksi pembayaran dari respons backend.
-9. Pelanggan membayar melalui metode yang disediakan MiomiPay.
-10. Laravel memverifikasi webhook/inquiry dan memperbarui status.
-11. Kasir melihat status serta bukti transaksi.
+### 5.2 Kasir Flow
+1. Kasir login dan diarahkan ke halaman transaksi.
+2. Kasir memilih menu dan memasukkannya ke keranjang.
+3. Kasir mengatur kuantitas dan memeriksa total.
+4. Kasir menekan Checkout.
+5. Aplikasi membaca ulang harga menu, menyimpan pesanan `pending_payment`, dan membuat tagihan MiomiPay.
+6. Aplikasi menampilkan instruksi pembayaran.
+7. Pelanggan membayar.
+8. Aplikasi memeriksa status pembayaran dan memperbarui pesanan menjadi `paid`, `failed`, atau `expired`.
+9. Kasir melihat hasil pembayaran.
 
 ---
 
@@ -247,82 +210,78 @@ Menampilkan invoice, tanggal, kasir, item, kuantitas, harga snapshot, subtotal, 
 
 | Lapisan | Teknologi | Tanggung jawab |
 |---|---|---|
-| Mobile frontend | Flutter/Dart | UI, navigasi, state, konsumsi API |
-| Backend | Laravel/PHP | REST API, autentikasi, otorisasi, business logic |
-| Database | PostgreSQL | Penyimpanan data relasional |
-| Authentication | Laravel Sanctum | Token API |
-| Payment | MiomiPay API | Pembuatan dan verifikasi pembayaran |
-| API testing | Postman | Pengujian endpoint |
+| Mobile app | Flutter/Dart | UI, navigasi, state, logika keranjang |
+| Autentikasi | Firebase Authentication | Login email/password |
+| Database | Cloud Firestore | Data pengguna, menu, pesanan (real-time) |
+| Otorisasi | Firestore Security Rules | Pembatasan akses per role |
+| Payment | MiomiPay API | Pembuatan tagihan dan status pembayaran |
 | Version control | Git/GitHub | Kolaborasi dan riwayat kode |
 
 ### 6.2 Alur Komunikasi
 
-- Flutter → Laravel REST API → PostgreSQL.
-- Laravel → MiomiPay API.
-- MiomiPay → Laravel webhook.
-- Flutter meminta status terbaru dari Laravel.
+- Flutter → Firebase Authentication (login).
+- Flutter ⇄ Cloud Firestore (baca/tulis data, stream real-time).
+- Flutter → MiomiPay API (buat tagihan, periksa status).
 
 ### 6.3 Prinsip Arsitektur
 
-- Backend adalah sumber kebenaran untuk harga, total, role, dan status pembayaran.
-- API menggunakan prefix `/api/v1`.
-- Semua komunikasi produksi menggunakan HTTPS.
-- Payment secret disimpan hanya di server.
-- Database transaction digunakan saat menyimpan order dan item.
-- Webhook harus idempotent.
-- API list menggunakan pagination.
+- Firestore adalah sumber data untuk menu dan pesanan.
+- Role diperiksa di Security Rules dan di navigasi aplikasi.
+- Logika pembayaran dipisah dalam `PaymentService` (interface) dengan dua implementasi: `MiomiPayService` dan `MockPaymentService`.
+- Kunci API MiomiPay tidak ditulis langsung di kode dan tidak masuk repository.
+- Item pesanan menyimpan snapshot nama dan harga.
+
+### 6.4 Batasan Arsitektur (Harus Dipahami Tim)
+
+Arsitektur tanpa backend punya konsekuensi yang perlu dicatat di laporan:
+
+1. **Kunci API MiomiPay berada di aplikasi.** Kunci yang dipakai di aplikasi mobile dapat diekstrak dari APK. Untuk tugas pelatihan, gunakan kunci sandbox. Untuk produksi, panggilan ke MiomiPay seharusnya dipindahkan ke server atau Cloud Functions.
+2. **Status `paid` ditulis oleh aplikasi, bukan server.** Security Rules tidak dapat memverifikasi bahwa MiomiPay benar-benar menyatakan lunas. Rules hanya membatasi siapa yang boleh mengubah dokumen dan field mana yang boleh berubah.
+3. **Total dihitung di aplikasi.** Rules membatasi perubahan `items` dan `total` setelah pesanan dibuat, tetapi tidak dapat menghitung ulang total sendiri.
+4. **Tidak ada webhook.** Status pembayaran bergantung pada pengecekan dari aplikasi. Jika aplikasi ditutup sebelum status diperiksa, pesanan tetap `pending_payment` sampai dibuka dan diperiksa kembali.
+5. **Cloud Functions** dapat menyelesaikan poin 1 sampai 4, tetapi sepengetahuan kami membutuhkan paket Firebase berbayar (Blaze). Hal ini perlu dicek di akun Firebase yang dipakai dan tidak dijadikan syarat MVP.
 
 ---
 
 ## 7. Non-Functional Requirements
 
 ### 7.1 Security
-- Password di-hash menggunakan mekanisme Laravel.
-- API dilindungi token Sanctum.
-- Role diperiksa pada backend.
-- Input divalidasi di backend.
-- Secret MiomiPay tidak dimasukkan ke aplikasi Flutter.
-- Webhook diverifikasi sesuai dokumentasi provider.
-- Endpoint sensitif memiliki rate limiting.
-- Data sensitif tidak dicatat ke log secara terbuka.
+- Autentikasi memakai Firebase Authentication; password dikelola Firebase.
+- Security Rules memisahkan hak Admin dan Kasir.
+- Kunci API payment tidak masuk repository (gunakan `--dart-define` atau file env yang di-ignore Git).
+- Input divalidasi di form Flutter dan, sejauh memungkinkan, di Rules.
+- Data sensitif (kunci, token) tidak dicetak ke log.
 
 ### 7.2 Performance
-- Target respons API katalog maksimal 2 detik pada kondisi pengujian normal.
-- Daftar produk/transaksi menggunakan pagination.
-- Kolom pencarian dan relasi penting diberi index.
-- Request payment memiliki timeout dan penanganan error.
+- Daftar menu tampil dari stream Firestore tanpa refresh manual.
+- Permintaan ke MiomiPay memiliki timeout dan penanganan error.
+- Daftar riwayat memakai batas jumlah dokumen (limit/pagination).
 
 ### 7.3 Reliability
-- Penyimpanan order dan order items dilakukan secara atomik.
-- Invoice unik.
-- Webhook idempotent.
-- Status pembayaran tidak boleh bergantung pada redirect di aplikasi.
-- Kegagalan provider tidak boleh menyebabkan order hilang.
+- Pesanan disimpan sebelum tagihan pembayaran dibuat, sehingga kegagalan MiomiPay tidak menghilangkan pesanan.
+- Tombol Checkout dinonaktifkan selama proses berjalan untuk mencegah pesanan ganda.
+- Kegagalan jaringan ditampilkan sebagai error dengan opsi coba lagi; aplikasi tidak boleh mengklaim transaksi berhasil.
 
 ### 7.4 Maintainability
-- Gunakan controller, model, request validation, dan service sesuai tanggung jawab.
-- Pisahkan Payment Service dari controller.
-- Dokumentasikan API dan konfigurasi.
+- Pisahkan folder `models`, `services`, `providers`, `screens`, dan `widgets`.
+- Dokumentasikan struktur Firestore, Rules, dan konfigurasi di `docs/`.
 - Gunakan branch Git per pekerjaan.
 
 ---
 
 ## 8. Business Rules
 
-1. Pengguna harus login untuk mengakses fitur terlindungi.
-2. Setiap akun memiliki satu role utama: `admin` atau `cashier`.
-3. Hanya Admin yang mengelola produk dan kategori.
-4. Kasir hanya dapat membuat dan melihat transaksi miliknya.
-5. Produk nonaktif tidak dapat dibeli.
-6. Harga saat checkout diambil dari database.
-7. Total akhir dihitung oleh backend.
-8. Detail order menyimpan snapshot nama, SKU, dan harga.
-9. Invoice harus unik.
-10. Pembayaran dinyatakan berhasil hanya setelah diverifikasi.
-11. Webhook duplikat tidak boleh menggandakan perubahan status.
-12. Produk yang direferensikan transaksi tidak dihapus permanen.
-13. Nominal pembayaran harus sama dengan total invoice.
-14. Perubahan harga produk tidak mengubah transaksi terdahulu.
+1. Pengguna harus login untuk mengakses fitur aplikasi.
+2. Setiap akun memiliki satu role: `admin` atau `kasir`.
+3. Hanya Admin yang menambah, mengubah, dan menghapus menu.
+4. Kasir hanya dapat membuat dan melihat pesanan miliknya.
+5. Harga saat checkout dibaca ulang dari Firestore.
+6. Item pesanan menyimpan snapshot nama dan harga.
+7. Nomor invoice harus unik.
+8. Pembayaran dinyatakan berhasil hanya setelah respons MiomiPay menyatakan berhasil.
+9. Nominal tagihan harus sama dengan total pesanan.
+10. Perubahan atau penghapusan menu tidak mengubah pesanan terdahulu.
+11. Status `paid` bersifat final dan tidak diubah kembali ke status lain.
 
 ---
 
@@ -330,47 +289,48 @@ Menampilkan invoice, tanggal, kasir, item, kuantitas, harga snapshot, subtotal, 
 
 | ID | Skenario | Hasil yang diharapkan |
 |---|---|---|
-| AC-01 | Admin login dengan kredensial valid | Masuk Dashboard Admin |
-| AC-02 | Kasir login dengan kredensial valid | Masuk Dashboard Kasir |
-| AC-03 | Password salah | Login ditolak |
-| AC-04 | Kasir memanggil endpoint CRUD produk | Ditolak (403) |
-| AC-05 | Admin membuat produk valid | Produk tersimpan |
-| AC-06 | SKU duplikat | Validasi gagal |
-| AC-07 | Admin mengubah harga produk | Harga katalog berubah |
-| AC-08 | Kasir melihat katalog | Produk aktif tampil |
-| AC-09 | Kasir checkout | Invoice dan order tercatat |
-| AC-10 | Client mengirim harga manipulatif | Backend tetap memakai harga database |
-| AC-11 | Pembayaran terverifikasi berhasil | Status payment `paid` dan order diperbarui |
-| AC-12 | Webhook duplikat diterima | Tidak terjadi pemrosesan ganda |
-| AC-13 | Pembayaran gagal/kedaluwarsa | Tidak ditandai sebagai paid |
-| AC-14 | Kasir melihat riwayat | Hanya transaksi miliknya |
-| AC-15 | Admin melihat riwayat | Seluruh transaksi dapat dilihat |
+| AC-01 | Admin login dengan kredensial valid | Masuk halaman Admin |
+| AC-02 | Kasir login dengan kredensial valid | Masuk halaman Kasir |
+| AC-03 | Password salah | Login ditolak dengan pesan jelas |
+| AC-04 | Kasir mencoba menulis ke koleksi menu | Ditolak Security Rules (`permission-denied`) |
+| AC-05 | Admin menambah menu valid | Menu tersimpan di Firestore |
+| AC-06 | Admin mengisi harga 0 atau kosong | Validasi form gagal |
+| AC-07 | Admin mengubah harga atau nama menu | Perubahan muncul real-time |
+| AC-08 | Admin menghapus menu | Menu hilang dari daftar Admin dan Kasir |
+| AC-09 | Kasir membuka daftar menu | Menu tampil sesuai data terbaru dari Admin |
+| AC-10 | Kasir checkout | Pesanan `pending_payment` tersimpan dengan invoice unik |
+| AC-11 | Harga menu berubah antara keranjang dan checkout | Total memakai harga terbaru |
+| AC-12 | Pembayaran dinyatakan berhasil oleh MiomiPay | Status pesanan menjadi `paid` |
+| AC-13 | Pembayaran gagal atau kedaluwarsa | Tidak ditandai `paid` |
+| AC-14 | Kasir mencoba mengubah `items` atau `total` pesanan | Ditolak Security Rules |
+| AC-15 | (Opsional) Kasir membuka riwayat | Hanya pesanan miliknya yang tampil |
+| AC-16 | (Opsional) Admin membuka riwayat | Seluruh pesanan tampil |
 
 ---
 
 ## 10. Testing Plan
 
-- Unit test: validasi, kalkulasi total, role, invoice.
-- Feature/API test: login, CRUD, checkout, riwayat.
-- Integration test: Laravel–PostgreSQL dan Laravel–MiomiPay sandbox.
-- Security test: akses tanpa token, akses lintas role, manipulasi harga, webhook palsu/duplikat.
+- Pengujian fungsional manual: login, CRUD menu, keranjang, checkout, pembayaran.
+- Pengujian Security Rules: Rules Playground di Firebase Console atau Firebase Emulator.
+- Pengujian pembayaran: sandbox MiomiPay; jika belum tersedia, mock yang diberi label jelas.
+- Pengujian real-time: ubah menu di satu perangkat/emulator dan amati di perangkat lain.
 - UAT: simulasi Admin dan Kasir dari login sampai pembayaran.
+- `flutter analyze` dan widget/unit test untuk logika perhitungan keranjang.
 
-Detail test case disediakan pada `docs/testing-report.md`.
+Detail test case ada di `docs/testing-report.md`.
 
 ---
 
 ## 11. Milestone Pengembangan
 
-Estimasi 4–5 minggu, menyesuaikan kesiapan dokumentasi MiomiPay.
+Perkiraan 4 minggu. Sesuaikan dengan tenggat dari pelatih dan kesiapan dokumentasi MiomiPay.
 
 | Minggu | Target |
 |---|---|
-| 1 | Setup project, database, kontrak API, desain UI |
-| 2 | Auth, role, CRUD produk/kategori, UI login/admin |
-| 3 | Order, checkout, katalog, keranjang |
-| 4 | Integrasi pembayaran, webhook, payment UI |
-| 5 | Integrasi menyeluruh, pengujian, perbaikan, APK |
+| 1 | Setup Flutter dan Firebase, struktur Firestore, desain UI, pelajari dokumentasi MiomiPay |
+| 2 | Login, role, Security Rules, CRUD menu real-time |
+| 3 | Daftar menu Kasir, keranjang, checkout, penyimpanan pesanan |
+| 4 | Integrasi MiomiPay (atau mock), pengecekan status, pengujian, perbaikan, APK |
 
 ---
 
@@ -378,29 +338,26 @@ Estimasi 4–5 minggu, menyesuaikan kesiapan dokumentasi MiomiPay.
 
 | Risiko | Mitigasi |
 |---|---|
-| Dokumentasi MiomiPay belum tersedia | Minta dokumentasi dan sandbox; gunakan mock payment sementara |
-| Webhook terlambat | Sediakan inquiry status jika didukung |
-| Webhook palsu | Verifikasi signature/token sesuai provider |
-| Webhook duplikat | Simpan event ID unik dan proses idempotent |
-| Harga dimanipulasi dari client | Hitung ulang di backend |
+| Dokumentasi/kunci MiomiPay belum tersedia | Daftar di dashboard MiomiPay lebih awal; gunakan `MockPaymentService` berlabel sementara |
+| Kunci API MiomiPay terekspos di APK | Pakai kunci sandbox; catat batasan di laporan; opsi Cloud Functions |
+| Status `paid` dapat dimanipulasi dari client | Batasi field yang boleh diubah di Rules; catat sebagai batasan arsitektur |
+| Aplikasi ditutup sebelum status pembayaran diperiksa | Sediakan tombol periksa status dan pengecekan saat halaman riwayat dibuka |
+| Security Rules salah atau terlalu longgar | Uji dengan Rules Playground/Emulator; jangan memakai mode test terbuka |
+| Biaya atau kuota Firebase | Gunakan batas query dan hindari listener yang tidak perlu |
 | Konflik Git | Branch terpisah dan Pull Request |
-| API belum selesai saat UI dibuat | Gunakan mock data/kontrak API sementara |
-| Koneksi internet terputus | Tampilkan error dan opsi retry; jangan mengklaim transaksi berhasil |
+| Koneksi internet terputus | Tampilkan error dan opsi coba lagi; jangan mengklaim transaksi berhasil |
 
 ---
 
 ## 13. Deliverables
 
 1. Source code Flutter.
-2. Source code Laravel.
-3. Database PostgreSQL dan migration.
-4. REST API.
-5. Dokumentasi API.
-6. Integrasi MiomiPay (atau mock yang jelas jika akses provider belum tersedia).
-7. Postman Collection.
-8. Dokumentasi instalasi dan penggunaan.
-9. Laporan pengujian.
-10. APK Android.
+2. Konfigurasi Firebase (Authentication, Firestore) dan Security Rules.
+3. Integrasi MiomiPay (atau mock yang jelas jika akses provider belum tersedia).
+4. Dokumentasi struktur data dan service.
+5. Dokumentasi instalasi dan penggunaan (termasuk cara membuat akun Admin/Kasir awal).
+6. Laporan pengujian.
+7. APK Android.
 
 ---
 
@@ -408,14 +365,12 @@ Estimasi 4–5 minggu, menyesuaikan kesiapan dokumentasi MiomiPay.
 
 MVP dianggap selesai apabila:
 - Aplikasi Flutter dapat dijalankan.
-- Laravel terhubung ke PostgreSQL.
-- Login dan role berfungsi.
-- Admin dapat mengelola produk/kategori.
-- Kasir dapat melihat katalog dan membuat keranjang.
-- Checkout membuat invoice dan menyimpan transaksi.
-- Payment flow teruji pada sandbox MiomiPay atau mock yang diberi label jelas.
-- Webhook diverifikasi dan idempotent.
-- Riwayat dan detail transaksi dapat dilihat sesuai hak akses.
+- Login dan role Admin/Kasir berfungsi dengan Firebase Authentication.
+- Admin dapat menambah, melihat, mengubah, dan menghapus menu; data real-time di Firestore.
+- Kasir dapat melihat menu dan membuat keranjang.
+- Checkout menyimpan pesanan dengan invoice unik.
+- Alur pembayaran teruji di sandbox MiomiPay, atau di mock yang diberi label jelas.
+- Security Rules membatasi akses sesuai role dan sudah diuji.
 - Acceptance criteria utama lulus.
 - Source code dan dokumentasi tersedia.
 
@@ -424,15 +379,20 @@ MVP dianggap selesai apabila:
 ## 15. Asumsi dan Pertanyaan Terbuka
 
 Sebelum implementasi final, tim perlu mengonfirmasi:
-1. Apakah aplikasi hanya untuk satu outlet?
-2. Apakah Admin membuat akun Kasir secara manual?
-3. Apakah target hanya Android?
-4. Apakah foto produk wajib?
-5. Apakah struk cukup ditampilkan di aplikasi atau perlu PDF/cetak?
-6. Metode pembayaran apa yang didukung akun MiomiPay?
-7. Apakah tim sudah memperoleh dokumentasi resmi dan sandbox MiomiPay?
-8. Apakah stok perlu dikurangi setelah pembayaran berhasil?
+1. Cloud Firestore atau Realtime Database yang dipakai? (Dokumen ini mengasumsikan Cloud Firestore.)
+2. Apakah tim sudah memiliki akun, dokumentasi, dan kunci sandbox MiomiPay?
+3. Metode pembayaran apa yang tersedia pada akun MiomiPay?
+4. Apakah MiomiPay menyediakan endpoint pengecekan status pembayaran?
+5. Apakah pelatih mengizinkan pemanggilan MiomiPay langsung dari aplikasi, atau menginginkan lewat Cloud Functions?
+6. Apakah fitur opsional (foto, kategori, riwayat) perlu dikerjakan?
 
-**Keputusan sementara MVP:** satu outlet, dua role, Android, tanpa manajemen stok kompleks, dan struk ditampilkan di aplikasi. Perubahan keputusan harus dicatat dalam README atau changelog.
+**Keputusan sementara MVP:** Android, Cloud Firestore, dua role, satu outlet, tanpa stok, akun Admin/Kasir dibuat manual di Firebase Console, kunci sandbox MiomiPay. Perubahan keputusan dicatat di README atau changelog.
 
 ---
+
+## 16. Riwayat Revisi
+
+| Versi | Tanggal | Perubahan |
+|---|---|---|
+| 1.0 | 14 November 2026 | Draft awal dengan Laravel + PostgreSQL |
+| 1.1 | 20 November 2026 | Disesuaikan dengan penugasan: backend Laravel/PostgreSQL/Sanctum dihapus dan diganti Firebase Authentication + Cloud Firestore. Webhook diganti pengecekan status. Kategori, foto, dan riwayat dipindah menjadi opsional. Ditambahkan bagian Batasan Arsitektur. |
